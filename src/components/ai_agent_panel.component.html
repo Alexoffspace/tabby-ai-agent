@@ -1,0 +1,179 @@
+<div
+  class="ai-panel-container"
+  (click)="$event.stopPropagation()"
+  (mousedown)="$event.stopPropagation()"
+  (keydown)="$event.stopPropagation()"
+  (keyup)="$event.stopPropagation()"
+  (keypress)="$event.stopPropagation()"
+>
+  <div class="header">
+    <div class="title">
+      <i class="fas fa-robot me-2"></i>
+      <span>AI Terminal Agent</span>
+    </div>
+    <div class="header-actions ms-auto">
+      <button class="btn btn-link btn-sm" type="button" (click)="clearChat()">
+        Clear
+      </button>
+      <button class="btn btn-link btn-sm" type="button" (click)="closed.emit()">
+        Close
+      </button>
+    </div>
+  </div>
+
+  <div class="context-bar">
+    <span
+      class="endpoint-pill"
+      [class.ready]="endpointConfigured"
+      [class.missing]="!endpointConfigured"
+    >
+      {{ endpointConfigured ? "Endpoint ready" : "Endpoint missing" }}
+    </span>
+    <span class="endpoint-text text-muted">
+      {{
+        endpointConfigured
+          ? config.store.aiAgent.llmEndpoint
+          : "Configure aiAgent.llmEndpoint in plugin settings."
+      }}
+    </span>
+  </div>
+
+  <div #messagesContainer class="messages">
+    <div class="empty-state" *ngIf="messages.length === 0">
+      <i class="fas fa-comments mb-3"></i>
+      <div class="h6 mb-2">Standard AI agent panel</div>
+      <div class="text-muted">
+        Prompts, streamed reasoning, and tool-call cards appear here.
+      </div>
+    </div>
+
+    <div
+      class="message"
+      *ngFor="let message of messages; trackBy: trackMessage"
+      [class.user]="message.role === 'user'"
+      [class.assistant]="message.role === 'assistant'"
+      [class.reasoning]="message.role === 'reasoning'"
+      [class.tool]="message.role === 'tool'"
+    >
+      <div class="message-header">
+        <span class="role">
+          <ng-container [ngSwitch]="message.role">
+            <span *ngSwitchCase="'user'">You</span>
+            <span *ngSwitchCase="'assistant'">Assistant</span>
+            <span *ngSwitchCase="'reasoning'">Reasoning</span>
+            <span *ngSwitchCase="'tool'">Tool result</span>
+          </ng-container>
+        </span>
+        <span class="stream-state text-muted" *ngIf="message.streaming">
+          streaming
+        </span>
+      </div>
+
+      <div class="message-content">
+        <div
+          class="markdown-content"
+          *ngIf="message.role === 'assistant' || message.role === 'user'; else nonMarkdownText"
+          [innerHTML]="message.content | aiMarkdown"
+        ></div>
+        <ng-template #nonMarkdownText>
+          <pre
+            class="reasoning-content"
+            *ngIf="message.role === 'reasoning'; else toolText"
+          >{{ message.content }}</pre>
+        </ng-template>
+        <ng-template #toolText>
+          <pre class="tool-result-content">{{ message.content }}</pre>
+        </ng-template>
+
+        <div
+          class="tool-calls"
+          *ngIf="message.role === 'assistant' && getToolCalls(message.toolCallIds).length"
+        >
+          <div
+            class="tool-call-card"
+            *ngFor="let toolCall of getToolCalls(message.toolCallIds); trackBy: trackToolCall"
+            [class.awaiting-approval]="toolCall.status === 'awaiting_approval'"
+            [class.executing]="toolCall.status === 'executing'"
+            [class.blocked]="toolCall.status === 'blocked'"
+            [class.completed]="toolCall.status === 'completed'"
+            [class.error]="toolCall.status === 'error'"
+          >
+            <div class="tool-call-header">
+              <span class="tool-name">{{ toolCall.name }}</span>
+              <span class="tool-status">{{ toolCall.status }}</span>
+            </div>
+            <pre class="tool-command" *ngIf="toolCall.command">{{ toolCall.command }}</pre>
+            <div
+              class="tool-call-meta"
+              *ngIf="toolCall.riskLevel || toolCall.estimatedRunTime || toolCall.explanation"
+            >
+              <div class="risk-badge" [attr.data-risk]="toolCall.riskLevel || 'unknown'">
+                Risk: {{ toolCall.riskLevel || "unknown" }}
+              </div>
+              <div class="tool-explanation" *ngIf="toolCall.estimatedRunTime">
+                Estimated runtime: {{ toolCall.estimatedRunTime }}
+              </div>
+              <div class="tool-explanation" *ngIf="toolCall.explanation">
+                {{ toolCall.explanation }}
+              </div>
+            </div>
+            <div
+              class="tool-call-actions"
+              *ngIf="toolCall.status === 'awaiting_approval'"
+            >
+              <button
+                class="btn btn-sm btn-primary"
+                type="button"
+                (click)="approveToolCall(toolCall.id)"
+              >
+                Approve
+              </button>
+              <button
+                class="btn btn-sm btn-outline-secondary"
+                type="button"
+                (click)="declineToolCall(toolCall.id)"
+              >
+                Decline
+              </button>
+            </div>
+            <pre *ngIf="toolCall.output">{{ toolCall.output }}</pre>
+            <div class="tool-error text-danger" *ngIf="toolCall.errorMessage">
+              {{ toolCall.errorMessage }}
+            </div>
+          </div>
+        </div>
+
+        <div class="streaming-indicator" *ngIf="message.streaming">
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="composer-error" *ngIf="lastError">
+    {{ lastError }}
+  </div>
+
+  <div class="input-area">
+    <textarea
+      #promptInput
+      class="form-control ai-input"
+      [(ngModel)]="draftPrompt"
+      [disabled]="sending || !endpointConfigured"
+      rows="1"
+      placeholder="Send a prompt. Shift+Enter for a new line."
+      (input)="autoResizeTextarea()"
+      (keydown)="handleComposerKeydown($event)"
+    ></textarea>
+    <button
+      class="btn btn-primary send-btn"
+      type="button"
+      [disabled]="!canSend"
+      (click)="sendMessage()"
+    >
+      {{ sending ? "Sending..." : "Send" }}
+    </button>
+  </div>
+</div>

@@ -1,0 +1,156 @@
+<div class="settings-page">
+  <section class="settings-hero">
+    <div>
+      <div class="eyebrow">Tabby AI Agent</div>
+      <h3>AI assistant settings</h3>
+      <p>
+        Connect the panel to any OpenAI-compatible chat API, tune
+        provider-specific request options, and choose how shell command approval
+        should work.
+      </p>
+    </div>
+    <div class="status-card">
+      <span
+        class="status-dot"
+        [class.ready]="config.store.aiAgent.llmEndpoint"
+      ></span>
+      <div>
+        <div class="status-label">
+          {{
+            config.store.aiAgent.llmEndpoint
+              ? "Endpoint configured"
+              : "Endpoint required"
+          }}
+        </div>
+        <div class="status-detail">
+          {{
+            config.store.aiAgent.llmEndpoint
+              ? config.store.aiAgent.llmEndpoint
+              : "Add a base URL before opening the AI agent panel."
+          }}
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="settings-card">
+    <div class="setting-copy">
+      <div class="setting-kicker">Connection</div>
+      <div class="title">LLM endpoint</div>
+      <div class="description">
+        Enter the base URL for your OpenAI-compatible API. The plugin sends
+        streamed chat requests to
+        <code>/v1/chat/completions</code> automatically, so do not include that
+        path here.
+      </div>
+    </div>
+
+    <div class="input-wrap">
+      <label class="input-label" for="ai-agent-endpoint">Base URL</label>
+      <input
+        id="ai-agent-endpoint"
+        class="form-control"
+        type="url"
+        placeholder="http://127.0.0.1:4000"
+        [(ngModel)]="config.store.aiAgent.llmEndpoint"
+        (ngModelChange)="saveLLMEndpoint($event)"
+        (blur)="checkLLMEndpoint()"
+      />
+      <div class="hint-grid">
+        <div>
+          <span class="hint-label">Use</span>
+          <code>http://127.0.0.1:4000</code>
+        </div>
+        <div>
+          <span class="hint-label">Not</span>
+          <code>http://127.0.0.1:4000/v1/chat/completions</code>
+        </div>
+      </div>
+      <div
+        class="checkpoint-status"
+        [class.checking]="endpointCheckpointStatus === 'checking'"
+        [class.valid]="endpointCheckpointStatus === 'valid'"
+        [class.invalid]="endpointCheckpointStatus === 'invalid'"
+        *ngIf="endpointCheckpointMessage"
+      >
+        {{ endpointCheckpointMessage }}
+      </div>
+    </div>
+  </section>
+
+  <section class="settings-card">
+    <div class="setting-copy">
+      <div class="setting-kicker">Safety</div>
+      <div class="title">Command approval</div>
+      <div class="description">
+        The assistant can propose shell commands with a risk level and an
+        explanation. This option only bypasses prompts for commands classified
+        as <code>low</code> risk; medium and high risk commands still require
+        manual approval.
+      </div>
+    </div>
+
+    <div class="input-wrap">
+      <label class="toggle-card">
+        <input
+          type="checkbox"
+          [ngModel]="config.store.aiAgent.autoApproveLowRiskCommands"
+          (ngModelChange)="saveAutoApproveLowRiskCommands($event)"
+        />
+        <span class="toggle-copy">
+          <span class="toggle-title">Auto approve low risk commands</span>
+          <span class="toggle-description">
+            Faster for harmless inspection commands, while still requiring
+            review before anything riskier runs.
+          </span>
+        </span>
+      </label>
+    </div>
+  </section>
+
+  <section class="settings-card">
+    <div class="setting-copy">
+      <div class="setting-kicker">Model tuning</div>
+      <div class="title">Additional request parameters</div>
+      <div class="description">
+        Optional JSON merged into every streamed chat completion request. This
+        is useful for LiteLLM, llama.cpp, vLLM, or other providers that expose
+        extra sampling, reasoning, or template controls.
+      </div>
+    </div>
+
+    <div class="input-wrap">
+      <label class="input-label" for="ai-agent-request-parameters"
+        >JSON object</label
+      >
+      <textarea
+        id="ai-agent-request-parameters"
+        class="form-control json-textarea"
+        rows="8"
+        spellcheck="false"
+        placeholder='{
+  "chat_template_kwargs": { "enable_thinking": true },
+  "thinking_budget_tokens": 100,
+  "temperature": 1.0,
+  "top_p": 0.95,
+  "top_k": 64
+}'
+        [ngModel]="additionalRequestParametersText"
+        (ngModelChange)="saveAdditionalRequestParametersText($event)"
+      ></textarea>
+      <div class="help-panel">
+        <div class="help-title">What goes here?</div>
+        <div>
+          Use strict JSON with quoted keys. Leave this empty to send only the
+          plugin defaults. Common keys include <code>temperature</code>,
+          <code>top_p</code>, <code>top_k</code>,
+          <code>thinking_budget_tokens</code>, and
+          <code>chat_template_kwargs</code>.
+        </div>
+      </div>
+      <div class="validation-error" *ngIf="additionalRequestParametersError">
+        {{ additionalRequestParametersError }}
+      </div>
+    </div>
+  </section>
+</div>
