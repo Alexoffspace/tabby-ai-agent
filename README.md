@@ -29,7 +29,7 @@ You are responsible for how you use this plugin. The plugin and its authors are 
 
 You can configure the plugin in Tabby's settings.
 
-Inside terminal, open the AI Agent panel using the **Open AI Agent** button in the toolbar.
+Inside terminal, open the AI Agent panel using the **AI Agent** button in the toolbar.
 
 You can also toggle the panel with the keyboard shortcut:
 

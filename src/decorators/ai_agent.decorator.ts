@@ -3,10 +3,6 @@ import { HotkeysService } from "tabby-core";
 import { TerminalDecorator, BaseTerminalTabComponent } from "tabby-terminal";
 import { AIAgentPanelService } from "../services/agent_panel.service";
 
-/**
- * Decorator that attaches the AI Assistant panel to terminal tabs.
- * Uses hotkey to toggle the panel visibility.
- */
 @Injectable()
 export class AIAgentDecorator extends TerminalDecorator {
   private readonly toolbarButtonMarker = "data-tabby-ai-agent-button";
@@ -58,9 +54,8 @@ export class AIAgentDecorator extends TerminalDecorator {
         button.type = "button";
         button.className = "btn btn-sm btn-link me-2";
         button.setAttribute(this.toolbarButtonMarker, "1");
-        button.title = "Open AI Agent";
-        button.innerHTML =
-          '<i class="fas fa-robot"></i><span>Open AI Agent</span>';
+        button.title = "AI Agent";
+        button.innerHTML = '<i class="fas fa-robot"></i><span>AI Agent</span>';
         button.style.cssText =
           "pointer-events:auto;z-index:10;position:relative;";
         button.addEventListener("mousedown", (event) => {
@@ -108,6 +103,4 @@ export class AIAgentDecorator extends TerminalDecorator {
       unsubscribe: () => clearInterval(timer),
     } as any);
   }
-
-  
 }
