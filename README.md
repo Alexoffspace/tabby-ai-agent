@@ -1,6 +1,8 @@
 # Tabby AI Agent
 
-![Tabby AI Agent screenshot](screenshot.png)
+<p align="center">
+	<img src="screenshot.png" alt="Tabby AI Agent screenshot" width="50%">
+</p>
 
 Tabby AI Agent adds an AI assistant panel directly inside [Tabby](https://tabby.sh/). It can handle terminal tasks more autonomously, execute shell commands, and help you understand terminal output without leaving your active terminal tab.
 
