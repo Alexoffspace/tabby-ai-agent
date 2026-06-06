@@ -30,7 +30,7 @@ import { AIPanelComponent } from "./components/agent_panel";
 import { AIAgentSettingsComponent } from "./components/agent_settings";
 
 // Pipes
-import { AIMarkdownPipe } from "./pipes/aiMarkdown.pipe";
+import { AIMarkdownPipe } from "./pipes/ai_markdown.pipe";
 
 /** @hidden */
 @NgModule({
