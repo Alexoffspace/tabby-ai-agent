@@ -1,6 +1,6 @@
 export interface ToolArgDefinition {
   name: string;
-  type: "string" | "number" | "boolean" | "object";
+  type: "string" | "number" | "boolean" | "object" | "array";
   description: string;
   required: boolean;
 }
@@ -13,12 +13,13 @@ export interface ToolDefinition<TArgs = any> {
 }
 
 export interface ToolExecutionState {
-  status: "executing" | "awaiting_terminal_input";
+  status: "executing" | "awaiting_terminal_input" | "awaiting_user_input";
   output?: string | null;
 }
 
 export interface ToolExecutionContext {
   signal?: AbortSignal;
+  toolCallId?: string;
   onStateChange?: (state: ToolExecutionState) => void;
 }
 

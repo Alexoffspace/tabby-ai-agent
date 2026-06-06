@@ -311,6 +311,7 @@ export class LLMChatSession {
               } else {
                 toolOutput = await tool.exec(args, {
                   signal: options.signal,
+                  toolCallId,
                   onStateChange: options.onToolResult
                     ? (state) =>
                         options.onToolResult!(
@@ -459,6 +460,13 @@ function buildToolSchema(tools: Tool[]) {
               acc[arg.name] = {
                 type: arg.type,
                 description: `${arg.description}${arg.required ? " (required)" : ""}`,
+                ...(arg.type === "array"
+                  ? {
+                      items: {
+                        type: "string",
+                      },
+                    }
+                  : {}),
               };
               return acc;
             },

@@ -20,10 +20,12 @@ import { Tool, ToolExecutionState } from "../lib/tool_types";
 import { RunShellCommandTool } from "../lib/run_shell_command.tool";
 import { CancelCommandTool } from "../lib/cancel_command.tool";
 import { TerminalContextService } from "../services/terminal_context.service";
+import { AskUserTool } from "../lib/ask_user.tool";
 
 type ChatRole = "user" | "assistant" | "reasoning" | "tool";
 type ToolCallStatus =
   | "awaiting_approval"
+  | "awaiting_user_input"
   | "awaiting_terminal_input"
   | "executing"
   | "blocked"
@@ -41,6 +43,16 @@ interface ToolCallViewModel {
   riskLevel: string | null;
   explanation: string | null;
   estimatedRunTime: string | null;
+  question: string | null;
+  choices: string[];
+}
+
+interface PendingUserInputRequest {
+  resolve: (answer: string) => void;
+  reject: (error: Error) => void;
+  settled: boolean;
+  draftAnswer: string;
+  abortHandler?: () => void;
 }
 
 interface ChatMessageViewModel {
@@ -87,6 +99,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
       settled: boolean;
     }
   >();
+  private pendingUserInputs = new Map<string, PendingUserInputRequest>();
 
   constructor(
     private config: ConfigService,
@@ -108,6 +121,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
   ngOnDestroy(): void {
     this.currentAbortController?.abort();
     this.cancelPendingApprovals();
+    this.cancelPendingUserInputs();
     this.chatSession = null;
   }
 
@@ -179,16 +193,21 @@ export class AIPanelComponent implements OnInit, OnDestroy {
         },
         onToolCall: async (toolCallId, toolName, args) => {
           const needsApproval = toolName === "run_shell_command";
+          const needsUserInput = toolName === "ask_user";
           const autoApproved =
             needsApproval && this.shouldAutoApproveLowRiskCommand(args);
           this.upsertToolCall(
             this.toToolCallViewModel(toolCallId, toolName, args, {
-              status: needsApproval
+              status: needsUserInput
+                ? "awaiting_user_input"
+                : needsApproval
                 ? autoApproved
                   ? "executing"
                   : "awaiting_approval"
                 : "executing",
-              output: needsApproval
+              output: needsUserInput
+                ? "Waiting for user input in the agent panel."
+                : needsApproval
                 ? autoApproved
                   ? "Auto-approved low-risk command. Sending to terminal..."
                   : null
@@ -280,6 +299,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
     this.currentAbortController?.abort();
     this.finalizeStreamingDrafts();
     this.markActiveToolCallsStopped();
+    this.cancelPendingUserInputs();
   }
 
   handleComposerKeydown(event: KeyboardEvent): void {
@@ -308,6 +328,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
     this.lastError = null;
     this.clearStreamingDrafts();
     this.cancelPendingApprovals();
+    this.cancelPendingUserInputs();
     this.initializeSession();
   }
 
@@ -343,6 +364,42 @@ export class AIPanelComponent implements OnInit, OnDestroy {
     });
     approval.resolve(false);
     this.pendingToolApprovals.delete(toolCallId);
+  }
+
+  submitUserAnswer(toolCallId: string, answer?: string): void {
+    const request = this.pendingUserInputs.get(toolCallId);
+    if (!request || request.settled) {
+      return;
+    }
+
+    const toolCall = this.mustGetToolCall(toolCallId);
+    const rawAnswer = answer ?? request.draftAnswer;
+    const trimmedAnswer = rawAnswer.trim();
+
+    if (!trimmedAnswer) {
+      return;
+    }
+
+    this.upsertToolCall({
+      ...toolCall,
+      status: "executing",
+      output: `User answered: ${trimmedAnswer}`,
+      errorMessage: null,
+    });
+    request.resolve(trimmedAnswer);
+  }
+
+  updatePendingUserAnswer(toolCallId: string, value: string): void {
+    const request = this.pendingUserInputs.get(toolCallId);
+    if (!request || request.settled) {
+      return;
+    }
+
+    request.draftAnswer = value;
+  }
+
+  getPendingUserAnswer(toolCallId: string): string {
+    return this.pendingUserInputs.get(toolCallId)?.draftAnswer ?? "";
   }
 
   trackMessage(_index: number, message: ChatMessageViewModel): string {
@@ -391,6 +448,9 @@ export class AIPanelComponent implements OnInit, OnDestroy {
       new GetTerminalLinesTool(this.frontend, this.terminalContext),
       new RunShellCommandTool(this.terminal, this.terminalContext),
       new CancelCommandTool(this.terminal),
+      new AskUserTool((toolCallId, args, signal) =>
+        this.requestUserAnswer(toolCallId, args, signal),
+      ),
     ];
 
     this.chatSession = new LLMChatSession(
@@ -580,6 +640,8 @@ export class AIPanelComponent implements OnInit, OnDestroy {
       riskLevel: this.getToolArg(args, "risk_level"),
       explanation: this.getToolArg(args, "explanation"),
       estimatedRunTime: this.getNumericToolArg(args, "estimated_run_time"),
+      question: this.getToolArg(args, "question"),
+      choices: this.getStringArrayToolArg(args, "choices"),
     };
   }
 
@@ -612,6 +674,13 @@ export class AIPanelComponent implements OnInit, OnDestroy {
       };
     }
 
+    if (output === "Waiting for user input in the agent panel.") {
+      return {
+        status: "awaiting_user_input",
+        output,
+      };
+    }
+
     return null;
   }
 
@@ -622,6 +691,17 @@ export class AIPanelComponent implements OnInit, OnDestroy {
 
   private getNormalizedRiskLevel(args: any): string | null {
     return this.getToolArg(args, "risk_level")?.trim().toLowerCase() ?? null;
+  }
+
+  private getStringArrayToolArg(args: any, key: string): string[] {
+    const value = args?.[key];
+    if (!Array.isArray(value)) {
+      return [];
+    }
+
+    return value
+      .map((item) => (typeof item === "string" ? item.trim() : ""))
+      .filter((item) => item.length > 0);
   }
 
   private isPlainObject(value: unknown): value is Record<string, any> {
@@ -713,6 +793,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
   private markActiveToolCallsStopped(): void {
     this.toolCalls = this.toolCalls.map((toolCall) =>
       toolCall.status === "awaiting_approval" ||
+      toolCall.status === "awaiting_user_input" ||
       toolCall.status === "awaiting_terminal_input" ||
       toolCall.status === "executing"
         ? {
@@ -750,6 +831,63 @@ export class AIPanelComponent implements OnInit, OnDestroy {
       }
     }
     this.pendingToolApprovals.clear();
+  }
+
+  private requestUserAnswer(
+    toolCallId: string,
+    args: { question: string; choices?: string[] },
+    signal?: AbortSignal,
+  ): Promise<string> {
+    const toolCall = this.toolCalls.find((item) => item.id === toolCallId);
+    if (
+      !toolCall ||
+      toolCall.name !== "ask_user" ||
+      toolCall.question !== args.question
+    ) {
+      throw new Error("Unable to present ask_user prompt in the panel.");
+    }
+
+    return new Promise<string>((resolve, reject) => {
+      const request: PendingUserInputRequest = {
+        resolve: (answer) => {
+          cleanup();
+          resolve(answer);
+        },
+        reject: (error) => {
+          cleanup();
+          reject(error);
+        },
+        settled: false,
+        draftAnswer: "",
+      };
+
+      const cleanup = () => {
+        request.settled = true;
+        if (request.abortHandler) {
+          signal?.removeEventListener("abort", request.abortHandler);
+        }
+        this.pendingUserInputs.delete(toolCallId);
+      };
+
+      if (signal) {
+        request.abortHandler = () => {
+          request.reject(new DOMException("Operation was aborted.", "AbortError"));
+        };
+        signal.addEventListener("abort", request.abortHandler, { once: true });
+      }
+
+      this.pendingUserInputs.set(toolCallId, request);
+      this.scrollMessagesToBottom();
+    });
+  }
+
+  private cancelPendingUserInputs(): void {
+    for (const request of this.pendingUserInputs.values()) {
+      if (!request.settled) {
+        request.reject(new DOMException("Operation was aborted.", "AbortError"));
+      }
+    }
+    this.pendingUserInputs.clear();
   }
 
   private generateId(prefix: string): string {
