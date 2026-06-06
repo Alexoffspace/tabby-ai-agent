@@ -14,7 +14,8 @@ import { GetTerminalLinesTool } from "../lib/get_terminal_lines.tool";
 import { LLMChatSession, LLMHistoryItem } from "../lib/llm_chat_session";
 import { Tool } from "../lib/tool_types";
 import { RunShellCommandTool } from "../lib/run_shell_command.tool";
-import { TerminalContextService } from "../services/terminalContext.service";
+import { CancelCommandTool } from "../lib/cancel_command.tool";
+import { TerminalContextService } from "../services/terminal_context.service";
 
 type ChatRole = "user" | "assistant" | "reasoning" | "tool";
 
@@ -22,12 +23,7 @@ interface ToolCallViewModel {
   id: string;
   name: string;
   args: any;
-  status:
-    | "awaiting_approval"
-    | "executing"
-    | "blocked"
-    | "completed"
-    | "error";
+  status: "awaiting_approval" | "executing" | "blocked" | "completed" | "error";
   output: string | null;
   errorMessage: string | null;
   command: string | null;
@@ -41,14 +37,15 @@ interface ChatMessageViewModel {
   role: ChatRole;
   content: string;
   streaming: boolean;
+  collapsed?: boolean;
   toolCallIds?: string[];
   toolCallId?: string | null;
 }
 
 @Component({
   selector: "ai-agent-panel",
-  templateUrl: "./ai_agent_panel.component.html",
-  styleUrls: ["./ai_agent_panel.component.scss"],
+  templateUrl: "./agent_panel.html",
+  styleUrls: ["./agent_panel.scss"],
 })
 export class AIPanelComponent implements OnInit, OnDestroy {
   @Input() frontend: Frontend | undefined;
@@ -68,6 +65,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
   lastError: string | null = null;
 
   private chatSession: LLMChatSession | null = null;
+  private currentAbortController: AbortController | null = null;
   private streamingAssistantMessageId: string | null = null;
   private streamingReasoningMessageId: string | null = null;
   private sessionTools: Tool[] = [];
@@ -94,6 +92,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.currentAbortController?.abort();
     this.cancelPendingApprovals();
     this.chatSession = null;
   }
@@ -124,7 +123,8 @@ export class AIPanelComponent implements OnInit, OnDestroy {
     }
 
     if (!this.terminal) {
-      this.lastError = "No active terminal tab is available for tool execution.";
+      this.lastError =
+        "No active terminal tab is available for tool execution.";
       return;
     }
 
@@ -139,6 +139,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
 
     this.lastError = null;
     this.sending = true;
+    this.currentAbortController = new AbortController();
     this.draftPrompt = "";
     this.resetTextareaHeight();
     this.clearStreamingDrafts();
@@ -177,7 +178,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
                 ? autoApproved
                   ? "Auto-approved low-risk command. Sending to terminal..."
                   : null
-                : "Reading terminal...",
+                : "Executing tool...",
               errorMessage: null,
             }),
           );
@@ -221,14 +222,35 @@ export class AIPanelComponent implements OnInit, OnDestroy {
             }),
           );
         },
+        signal: this.currentAbortController.signal,
       });
     } catch (error) {
-      this.lastError = error instanceof Error ? error.message : String(error);
-      this.clearStreamingDrafts();
+      if (this.isAbortError(error)) {
+        this.finalizeStreamingDrafts();
+        this.markActiveToolCallsStopped();
+      } else {
+        this.lastError = error instanceof Error ? error.message : String(error);
+        this.clearStreamingDrafts();
+      }
     } finally {
+      this.currentAbortController = null;
       this.sending = false;
       this.focusPrompt();
     }
+  }
+
+  stopCurrentResponse(): void {
+    if (!this.sending) {
+      return;
+    }
+
+    this.cancelPendingApprovals();
+    if (this.hasExecutingShellCommand()) {
+      this.terminal?.sendInput("\x03");
+    }
+    this.currentAbortController?.abort();
+    this.finalizeStreamingDrafts();
+    this.markActiveToolCallsStopped();
   }
 
   handleComposerKeydown(event: KeyboardEvent): void {
@@ -249,6 +271,9 @@ export class AIPanelComponent implements OnInit, OnDestroy {
   }
 
   clearChat(): void {
+    if (this.sending) {
+      this.currentAbortController?.abort();
+    }
     this.messages = [];
     this.toolCalls = [];
     this.lastError = null;
@@ -299,6 +324,14 @@ export class AIPanelComponent implements OnInit, OnDestroy {
     return toolCall.id;
   }
 
+  toggleMessageCollapsed(messageId: string): void {
+    this.messages = this.messages.map((message) =>
+      message.id === messageId
+        ? { ...message, collapsed: !message.collapsed }
+        : message,
+    );
+  }
+
   formatToolArgs(args: any): string {
     try {
       return JSON.stringify(args ?? {}, null, 2);
@@ -328,6 +361,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
     this.sessionTools = [
       new GetTerminalLinesTool(this.frontend, this.terminalContext),
       new RunShellCommandTool(this.terminal, this.terminalContext),
+      new CancelCommandTool(this.terminal),
     ];
 
     this.chatSession = new LLMChatSession(
@@ -337,6 +371,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
         "Answer conversationally and concisely.",
         "You can use the get_terminal_lines tool to inspect recent terminal output.",
         "You can use the run_shell_command tool when executing a shell command is necessary.",
+        "You can use the cancel_command tool to send Ctrl-C when an active foreground command should be interrupted.",
         "Only call run_shell_command when terminal execution materially helps the user.",
         "Every run_shell_command call must include command, risk_level, explanation, and estimated_run_time in seconds.",
       ].join("\n"),
@@ -382,6 +417,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
           role,
           content: token,
           streaming: true,
+          collapsed: role === "reasoning",
         },
       ];
     } else {
@@ -422,7 +458,9 @@ export class AIPanelComponent implements OnInit, OnDestroy {
     if (message.role === "tool") {
       const toolCallId = message.tool_call_id ?? null;
       if (toolCallId) {
-        const existingToolCall = this.toolCalls.find((item) => item.id === toolCallId);
+        const existingToolCall = this.toolCalls.find(
+          (item) => item.id === toolCallId,
+        );
         if (existingToolCall) {
           this.upsertToolCall({
             ...existingToolCall,
@@ -455,6 +493,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
         role,
         content,
         streaming: false,
+        collapsed: role === "reasoning",
         ...extra,
       });
     }
@@ -472,7 +511,9 @@ export class AIPanelComponent implements OnInit, OnDestroy {
   }
 
   private upsertToolCall(toolCall: ToolCallViewModel): void {
-    const existingIndex = this.toolCalls.findIndex((item) => item.id === toolCall.id);
+    const existingIndex = this.toolCalls.findIndex(
+      (item) => item.id === toolCall.id,
+    );
     if (existingIndex === -1) {
       this.toolCalls = [...this.toolCalls, toolCall];
     } else {
@@ -588,6 +629,56 @@ export class AIPanelComponent implements OnInit, OnDestroy {
       );
       this.streamingReasoningMessageId = null;
     }
+  }
+
+  private finalizeStreamingDrafts(): void {
+    if (this.streamingAssistantMessageId) {
+      this.messages = this.messages.map((message) =>
+        message.id === this.streamingAssistantMessageId
+          ? { ...message, streaming: false }
+          : message,
+      );
+      this.streamingAssistantMessageId = null;
+    }
+
+    if (this.streamingReasoningMessageId) {
+      this.messages = this.messages.map((message) =>
+        message.id === this.streamingReasoningMessageId
+          ? { ...message, streaming: false }
+          : message,
+      );
+      this.streamingReasoningMessageId = null;
+    }
+  }
+
+  private markActiveToolCallsStopped(): void {
+    this.toolCalls = this.toolCalls.map((toolCall) =>
+      toolCall.status === "awaiting_approval" || toolCall.status === "executing"
+        ? {
+            ...toolCall,
+            status: "blocked",
+            output: toolCall.output
+              ? `${toolCall.output}\nStopped by the user.`
+              : "Stopped by the user.",
+            errorMessage: null,
+          }
+        : toolCall,
+    );
+  }
+
+  private hasExecutingShellCommand(): boolean {
+    return this.toolCalls.some(
+      (toolCall) =>
+        toolCall.name === "run_shell_command" &&
+        toolCall.status === "executing",
+    );
+  }
+
+  private isAbortError(error: unknown): boolean {
+    return (
+      (error instanceof DOMException && error.name === "AbortError") ||
+      (error instanceof Error && error.name === "AbortError")
+    );
   }
 
   private cancelPendingApprovals(): void {

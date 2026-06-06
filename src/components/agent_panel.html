@@ -53,14 +53,28 @@
       [class.user]="message.role === 'user'"
       [class.assistant]="message.role === 'assistant'"
       [class.reasoning]="message.role === 'reasoning'"
+      [class.collapsed]="message.collapsed"
       [class.tool]="message.role === 'tool'"
     >
       <div class="message-header">
-        <span class="role">
+        <button
+          *ngIf="message.role === 'reasoning'"
+          class="reasoning-toggle"
+          type="button"
+          (click)="toggleMessageCollapsed(message.id)"
+          [attr.aria-expanded]="!message.collapsed"
+        >
+          <i
+            class="fas"
+            [class.fa-chevron-right]="message.collapsed"
+            [class.fa-chevron-down]="!message.collapsed"
+          ></i>
+          <span>Reasoning</span>
+        </button>
+        <span class="role" *ngIf="message.role !== 'reasoning'">
           <ng-container [ngSwitch]="message.role">
             <span *ngSwitchCase="'user'">You</span>
             <span *ngSwitchCase="'assistant'">Assistant</span>
-            <span *ngSwitchCase="'reasoning'">Reasoning</span>
             <span *ngSwitchCase="'tool'">Tool result</span>
           </ng-container>
         </span>
@@ -69,7 +83,7 @@
         </span>
       </div>
 
-      <div class="message-content">
+      <div class="message-content" *ngIf="!message.collapsed">
         <div
           class="markdown-content"
           *ngIf="message.role === 'assistant' || message.role === 'user'; else nonMarkdownText"
@@ -168,12 +182,22 @@
       (keydown)="handleComposerKeydown($event)"
     ></textarea>
     <button
+      *ngIf="sending; else sendButton"
+      class="btn btn-outline-danger send-btn"
+      type="button"
+      (click)="stopCurrentResponse()"
+    >
+      Stop
+    </button>
+    <ng-template #sendButton>
+      <button
       class="btn btn-primary send-btn"
       type="button"
       [disabled]="!canSend"
       (click)="sendMessage()"
-    >
-      {{ sending ? "Sending..." : "Send" }}
-    </button>
+      >
+        Send
+      </button>
+    </ng-template>
   </div>
 </div>

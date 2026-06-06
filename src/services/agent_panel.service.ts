@@ -7,7 +7,7 @@ import {
   EnvironmentInjector,
 } from "@angular/core";
 import { BaseTerminalTabComponent } from "tabby-terminal";
-import { AIPanelComponent } from "../components/ai_agent_panel.component";
+import { AIPanelComponent } from "../components/agent_panel";
 
 @Injectable()
 export class AIAgentPanelService {

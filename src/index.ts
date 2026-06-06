@@ -18,16 +18,16 @@ import { AIAgentHotkeyProvider } from "./hotkeys";
 import { AISettingsTabProvider } from "./settings";
 
 // Services
-import { AIAgentPanelService } from "./services/ai_agent_panel.service";
-import { TerminalContextService } from "./services/terminalContext.service";
+import { AIAgentPanelService } from "./services/agent_panel.service";
+import { TerminalContextService } from "./services/terminal_context.service";
 
 // Decorators
 import { AIAgentDecorator } from "./decorators/ai_agent.decorator";
 import { AIAgentToolbarButtonProvider } from "./toolbar";
 
 // Components
-import { AIPanelComponent } from "./components/ai_agent_panel.component";
-import { AIAgentSettingsComponent } from "./components/ai_agent_settings.component";
+import { AIPanelComponent } from "./components/agent_panel";
+import { AIAgentSettingsComponent } from "./components/agent_settings";
 
 // Pipes
 import { AIMarkdownPipe } from "./pipes/aiMarkdown.pipe";
@@ -69,7 +69,7 @@ export default class AIAgentModule {}
 export {
   TerminalContextService,
   TerminalContext,
-} from "./services/terminalContext.service";
+} from "./services/terminal_context.service";
 
-export { AIPanelComponent } from "./components/ai_agent_panel.component";
+export { AIPanelComponent } from "./components/agent_panel";
 export { AIAgentConfig, AIProvider } from "./config";

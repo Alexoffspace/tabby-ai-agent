@@ -21,6 +21,9 @@ const linkerPlugin = createEs2015LinkerPlugin({
 
 const isDev = !!process.env.TABBY_DEV
 
+const componentScssPattern = /theme.*\.scss$|component\.scss$|[\\/]components[\\/].*\.scss$/
+const componentCssPattern = /component\.css$|[\\/]components[\\/].*\.css$/
+
 const sourceMapOptions = {
     exclude: [/node_modules/, /vendor/],
     filename: '[file].map',
@@ -103,22 +106,22 @@ export default {
             {
                 test: /\.scss$/,
                 use: ['@tabby-gang/to-string-loader', 'css-loader', 'sass-loader'],
-                include: /(theme.*|component)\.scss/,
+                include: componentScssPattern,
             },
             {
                 test: /\.scss$/,
                 use: ['style-loader', 'css-loader', 'sass-loader'],
-                exclude: /(theme.*|component)\.scss/,
+                exclude: componentScssPattern,
             },
             {
                 test: /\.css$/,
                 use: ['@tabby-gang/to-string-loader', 'css-loader'],
-                include: /component\.css/,
+                include: componentCssPattern,
             },
             {
                 test: /\.css$/,
                 use: ['style-loader', 'css-loader'],
-                exclude: /component\.css/,
+                exclude: componentCssPattern,
             },
         ],
     },

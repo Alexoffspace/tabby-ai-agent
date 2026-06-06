@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core'
 import { SettingsTabProvider } from 'tabby-settings'
-import { AIAgentSettingsComponent } from './components/ai_agent_settings.component'
+import { AIAgentSettingsComponent } from './components/agent_settings'
 
 @Injectable()
 export class AISettingsTabProvider extends SettingsTabProvider {

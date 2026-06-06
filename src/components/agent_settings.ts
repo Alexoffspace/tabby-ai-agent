@@ -3,8 +3,8 @@ import { ConfigService } from "tabby-core";
 import { checkpointLLMEndpoint } from "../lib/llm_chat_session";
 
 @Component({
-  templateUrl: "./ai_agent_settings.component.html",
-  styleUrls: ["./ai_agent_settings.component.scss"],
+  templateUrl: "./agent_settings.html",
+  styleUrls: ["./agent_settings.scss"],
 })
 export class AIAgentSettingsComponent implements OnInit {
   @HostBinding("class.content-box") true;

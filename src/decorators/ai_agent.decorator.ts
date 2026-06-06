@@ -1,7 +1,7 @@
 import { Injectable } from "@angular/core";
 import { HotkeysService } from "tabby-core";
 import { TerminalDecorator, BaseTerminalTabComponent } from "tabby-terminal";
-import { AIAgentPanelService } from "../services/ai_agent_panel.service";
+import { AIAgentPanelService } from "../services/agent_panel.service";
 
 /**
  * Decorator that attaches the AI Assistant panel to terminal tabs.

@@ -117,6 +117,10 @@
             background: rgba(var(--theme-primary-rgb), 0.06);
             border-style: dashed;
             border-color: rgba(var(--theme-primary-rgb), 0.35);
+
+            &.collapsed {
+                padding-bottom: 8px;
+            }
         }
 
         &.tool {
@@ -137,6 +141,29 @@
             display: flex;
             align-items: center;
             font-weight: 600;
+        }
+
+        .reasoning-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: var(--theme-fg);
+            font: inherit;
+            font-weight: 600;
+            cursor: pointer;
+
+            i {
+                width: 12px;
+                font-size: 10px;
+                color: var(--theme-fg-muted);
+            }
+
+            &:hover {
+                color: var(--theme-primary);
+            }
         }
 
         .stream-state {

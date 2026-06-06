@@ -114,6 +114,7 @@ export class LLMChatSession {
       stackTrace: string,
     ) => Promise<void>;
     simulatedMode?: boolean;
+    signal?: AbortSignal;
   }) {
     const pushHistory = async (message: LLMHistoryItem) => {
       this.history.push(message);
@@ -148,9 +149,11 @@ export class LLMChatSession {
     }
 
     while (true) {
+      this.throwIfAborted(options.signal);
       const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        signal: options.signal,
         body: JSON.stringify({
           model: "default",
           messages: this.history.filter((h) => h.role !== "reasoning"),
@@ -171,6 +174,7 @@ export class LLMChatSession {
       let finishReason: "tool_calls" | "stop" | null = null;
       let lastStdoutWasReasoning = false;
       while (true) {
+        this.throwIfAborted(options.signal);
         const { done, value } = await reader.read();
         if (done) break;
         const chunk = decoder.decode(value, { stream: true });
@@ -266,15 +270,22 @@ export class LLMChatSession {
             toolOutput = `Tool ${toolName} call was not allowed.`;
           } else {
             try {
+              this.throwIfAborted(options.signal);
               if (options.simulatedMode && tool.execSimulated) {
                 toolOutput = await tool.execSimulated(args);
               } else if (options.simulatedMode) {
                 toolOutput = `Tool ${toolName} executed successfully.`;
               } else {
-                toolOutput = await tool.exec(args);
+                toolOutput = await tool.exec(args, {
+                  signal: options.signal,
+                });
               }
               this.toolCalls.push({ name: toolName, args, output: toolOutput });
             } catch (error) {
+              if (this.isAbortError(error)) {
+                throw error;
+              }
+
               const errorMessage =
                 error instanceof Error ? error.message : String(error);
               const stackTrace =
@@ -372,6 +383,19 @@ export class LLMChatSession {
   }
   getHistory(): LLMHistoryItem[] {
     return structuredClone(this.history);
+  }
+
+  private throwIfAborted(signal?: AbortSignal): void {
+    if (signal?.aborted) {
+      throw new DOMException("Operation was aborted.", "AbortError");
+    }
+  }
+
+  private isAbortError(error: unknown): boolean {
+    return (
+      (error instanceof DOMException && error.name === "AbortError") ||
+      (error instanceof Error && error.name === "AbortError")
+    );
   }
 }
 

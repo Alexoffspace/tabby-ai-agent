@@ -1,5 +1,5 @@
 import { Frontend } from "tabby-terminal";
-import { TerminalContextService } from "../services/terminalContext.service";
+import { TerminalContextService } from "../services/terminal_context.service";
 import { Tool, ToolArgDefinition } from "./tool_types";
 
 interface GetTerminalLinesArgs {

@@ -2,8 +2,8 @@ import { BaseTerminalTabComponent } from "tabby-terminal";
 import {
   TerminalBufferPosition,
   TerminalContextService,
-} from "../services/terminalContext.service";
-import { Tool, ToolArgDefinition } from "./tool_types";
+} from "../services/terminal_context.service";
+import { Tool, ToolArgDefinition, ToolExecutionContext } from "./tool_types";
 
 interface RunShellCommandArgs {
   command: string;
@@ -59,11 +59,15 @@ export class RunShellCommandTool implements Tool {
     ];
   }
 
-  async exec(args: RunShellCommandArgs): Promise<string> {
+  async exec(
+    args: RunShellCommandArgs,
+    context?: ToolExecutionContext,
+  ): Promise<string> {
     const frontend = this.terminal.frontend;
     if (!frontend) {
       throw new Error("Terminal frontend is not ready.");
     }
+    this.throwIfAborted(context?.signal);
 
     const startPosition =
       this.terminalContext.captureBufferPosition(frontend) ??
@@ -74,6 +78,7 @@ export class RunShellCommandTool implements Tool {
     const output = await this.waitForStableTerminalOutput(
       startPosition,
       args.estimated_run_time,
+      context?.signal,
     );
     return output || "No terminal output captured.";
   }
@@ -101,6 +106,7 @@ export class RunShellCommandTool implements Tool {
   private async waitForStableTerminalOutput(
     startPosition: TerminalBufferPosition | null,
     waitTimeSeconds?: number,
+    signal?: AbortSignal,
   ): Promise<string> {
     const frontend = this.terminal.frontend;
     if (!frontend) {
@@ -110,11 +116,11 @@ export class RunShellCommandTool implements Tool {
     const initialWaitMs = this.normalizeWaitTime(waitTimeSeconds);
     let lastOutput = "";
 
-    await this.sleep(initialWaitMs);
+    await this.sleep(initialWaitMs, signal);
     lastOutput = this.getCommandOutput(startPosition);
 
     while (true) {
-      await this.sleep(1000);
+      await this.sleep(1000, signal);
       const output = this.getCommandOutput(startPosition);
       if (output !== lastOutput) {
         lastOutput = output;
@@ -152,9 +158,27 @@ export class RunShellCommandTool implements Tool {
     return context?.content?.trim() || "";
   }
 
-  private sleep(delayMs: number): Promise<void> {
-    return new Promise((resolve) => {
-      setTimeout(resolve, delayMs);
+  private sleep(delayMs: number, signal?: AbortSignal): Promise<void> {
+    this.throwIfAborted(signal);
+
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        signal?.removeEventListener("abort", onAbort);
+        resolve();
+      }, delayMs);
+      const onAbort = () => {
+        clearTimeout(timeout);
+        signal?.removeEventListener("abort", onAbort);
+        reject(new DOMException("Operation was aborted.", "AbortError"));
+      };
+
+      signal?.addEventListener("abort", onAbort, { once: true });
     });
+  }
+
+  private throwIfAborted(signal?: AbortSignal): void {
+    if (signal?.aborted) {
+      throw new DOMException("Operation was aborted.", "AbortError");
+    }
   }
 }

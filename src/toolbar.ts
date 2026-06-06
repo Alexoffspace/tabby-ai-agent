@@ -6,7 +6,7 @@ import {
   CommandProvider,
 } from "tabby-core";
 import { BaseTerminalTabComponent } from "tabby-terminal";
-import { AIAgentPanelService } from "./services/ai_agent_panel.service";
+import { AIAgentPanelService } from "./services/agent_panel.service";
 
 @Injectable()
 export class AIAgentToolbarButtonProvider extends CommandProvider {
