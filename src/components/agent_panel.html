@@ -30,21 +30,22 @@
       {{ endpointConfigured ? "Endpoint ready" : "Endpoint missing" }}
     </span>
     <span class="endpoint-text text-muted">
-      {{
-        endpointConfigured
-          ? config.store.aiAgent.llmEndpoint
-          : "Configure aiAgent.llmEndpoint in plugin settings."
-      }}
+      {{ endpointConfigured ? config.store.aiAgent.llmEndpoint : "Configure
+      aiAgent.llmEndpoint in plugin settings." }}
     </span>
   </div>
 
   <div #messagesContainer class="messages">
     <div class="empty-state" *ngIf="messages.length === 0">
-      <i class="fas fa-comments mb-3"></i>
-      <div class="h6 mb-2">Standard AI agent panel</div>
-      <div class="text-muted">
-        Prompts, streamed reasoning, and tool-call cards appear here.
-      </div>
+      <i class="fas fa-comments empty-state-icon"></i>
+      <div class="empty-state-title">Try asking the agent</div>
+      <ul class="empty-state-examples">
+        <li>Explain last command</li>
+        <li>Check my nginx logs</li>
+        <li>Find all images in this folder</li>
+        <li>What is the server uptime?</li>
+        <li>Update system packages</li>
+      </ul>
     </div>
 
     <div
@@ -93,7 +94,9 @@
           <pre
             class="reasoning-content"
             *ngIf="message.role === 'reasoning'; else toolText"
-          >{{ message.content }}</pre>
+          >
+{{ message.content }}</pre
+          >
         </ng-template>
         <ng-template #toolText>
           <pre class="tool-result-content">{{ message.content }}</pre>
@@ -116,12 +119,17 @@
               <span class="tool-name">{{ toolCall.name }}</span>
               <span class="tool-status">{{ toolCall.status }}</span>
             </div>
-            <pre class="tool-command" *ngIf="toolCall.command">{{ toolCall.command }}</pre>
+            <pre class="tool-command" *ngIf="toolCall.command">
+{{ toolCall.command }}</pre
+            >
             <div
               class="tool-call-meta"
               *ngIf="toolCall.riskLevel || toolCall.estimatedRunTime || toolCall.explanation"
             >
-              <div class="risk-badge" [attr.data-risk]="toolCall.riskLevel || 'unknown'">
+              <div
+                class="risk-badge"
+                [attr.data-risk]="toolCall.riskLevel || 'unknown'"
+              >
                 Risk: {{ toolCall.riskLevel || "unknown" }}
               </div>
               <div class="tool-explanation" *ngIf="toolCall.estimatedRunTime">
@@ -166,9 +174,7 @@
     </div>
   </div>
 
-  <div class="composer-error" *ngIf="lastError">
-    {{ lastError }}
-  </div>
+  <div class="composer-error" *ngIf="lastError">{{ lastError }}</div>
 
   <div class="input-area">
     <textarea
@@ -191,10 +197,10 @@
     </button>
     <ng-template #sendButton>
       <button
-      class="btn btn-primary send-btn"
-      type="button"
-      [disabled]="!canSend"
-      (click)="sendMessage()"
+        class="btn btn-primary send-btn"
+        type="button"
+        [disabled]="!canSend"
+        (click)="sendMessage()"
       >
         Send
       </button>
