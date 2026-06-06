@@ -6,12 +6,14 @@
     "tabby-plugin"
   ],
   "main": "dist/index.js",
-  "typings": "dist/index.d.ts",
   "scripts": {
     "build": "webpack --progress --color",
     "watch": "webpack --progress --color --watch"
   },
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "files": [
     "dist"
   ],

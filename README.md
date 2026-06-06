@@ -38,7 +38,7 @@ You can also toggle the panel with the keyboard shortcut:
 
 ## Privacy Warning
 
-Prefer self-hosting. Third-party AI services may collect your terminal commands, logs, and file paths. Be wary of "privacy promises" from large providers; their incentives—data collection and model training—are rarely aligned with your own. While self-hosting requires more setup, it ensures you set the rules for your data rather than hoping a vendor follows theirs.
+Prefer self-hosting. Third-party AI services may collect your terminal commands, logs, and file paths. Be wary of "privacy promises" from large providers; their incentives, data collection and model training, are rarely aligned with your own. While self-hosting requires more setup, it ensures you set the rules for your data rather than hoping a vendor follows theirs.
 
 ## License
 
