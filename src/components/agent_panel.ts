@@ -16,18 +16,25 @@ import {
   LLMChatSession,
   LLMHistoryItem,
 } from "../lib/llm_chat_session";
-import { Tool } from "../lib/tool_types";
+import { Tool, ToolExecutionState } from "../lib/tool_types";
 import { RunShellCommandTool } from "../lib/run_shell_command.tool";
 import { CancelCommandTool } from "../lib/cancel_command.tool";
 import { TerminalContextService } from "../services/terminal_context.service";
 
 type ChatRole = "user" | "assistant" | "reasoning" | "tool";
+type ToolCallStatus =
+  | "awaiting_approval"
+  | "awaiting_terminal_input"
+  | "executing"
+  | "blocked"
+  | "completed"
+  | "error";
 
 interface ToolCallViewModel {
   id: string;
   name: string;
   args: any;
-  status: "awaiting_approval" | "executing" | "blocked" | "completed" | "error";
+  status: ToolCallStatus;
   output: string | null;
   errorMessage: string | null;
   command: string | null;
@@ -206,6 +213,21 @@ export class AIPanelComponent implements OnInit, OnDestroy {
           });
         },
         onToolResult: async (toolCallId, toolName, args, output) => {
+          const existingToolCall = this.toolCalls.find(
+            (item) => item.id === toolCallId,
+          );
+          const executionState = this.getToolExecutionState(output);
+
+          if (existingToolCall && executionState) {
+            this.upsertToolCall({
+              ...existingToolCall,
+              status: executionState.status,
+              output: executionState.output ?? null,
+              errorMessage: null,
+            });
+            return;
+          }
+
           this.upsertToolCall(
             this.toToolCallViewModel(toolCallId, toolName, args, {
               status: output.includes("not allowed") ? "blocked" : "completed",
@@ -569,6 +591,30 @@ export class AIPanelComponent implements OnInit, OnDestroy {
     return toolCall;
   }
 
+  private getToolExecutionState(output: string): ToolExecutionState | null {
+    if (
+      output === "Command approved. Sending to terminal..." ||
+      output === "Terminal input received. Waiting for the command to finish..."
+    ) {
+      return {
+        status: "executing",
+        output,
+      };
+    }
+
+    if (
+      output ===
+      "Waiting for secure input in the terminal. Focus the terminal tab and complete the prompt there."
+    ) {
+      return {
+        status: "awaiting_terminal_input",
+        output,
+      };
+    }
+
+    return null;
+  }
+
   private getToolArg(args: any, key: string): string | null {
     const value = args?.[key];
     return typeof value === "string" && value.trim().length > 0 ? value : null;
@@ -666,7 +712,9 @@ export class AIPanelComponent implements OnInit, OnDestroy {
 
   private markActiveToolCallsStopped(): void {
     this.toolCalls = this.toolCalls.map((toolCall) =>
-      toolCall.status === "awaiting_approval" || toolCall.status === "executing"
+      toolCall.status === "awaiting_approval" ||
+      toolCall.status === "awaiting_terminal_input" ||
+      toolCall.status === "executing"
         ? {
             ...toolCall,
             status: "blocked",

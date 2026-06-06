@@ -311,6 +311,15 @@ export class LLMChatSession {
               } else {
                 toolOutput = await tool.exec(args, {
                   signal: options.signal,
+                  onStateChange: options.onToolResult
+                    ? (state) =>
+                        options.onToolResult!(
+                          toolCallId,
+                          toolName,
+                          args,
+                          state.output ?? "",
+                        )
+                    : undefined,
                 });
               }
               this.toolCalls.push({ name: toolName, args, output: toolOutput });

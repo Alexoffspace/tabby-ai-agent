@@ -262,6 +262,11 @@
                 border-color: rgba(var(--theme-primary-rgb), 0.35);
             }
 
+            &.awaiting-terminal-input {
+                border-color: rgba(255, 193, 7, 0.5);
+                background: rgba(255, 193, 7, 0.08);
+            }
+
             &.executing {
                 border-color: rgba(var(--theme-primary-rgb), 0.5);
             }

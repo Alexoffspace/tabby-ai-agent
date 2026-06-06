@@ -74,11 +74,15 @@ export class RunShellCommandTool implements Tool {
       this.captureFallbackPosition();
 
     this.terminal.sendInput(`${args.command}\r`);
+    context?.onStateChange?.({
+      status: "executing",
+      output: "Command approved. Sending to terminal...",
+    });
 
     const output = await this.waitForStableTerminalOutput(
       startPosition,
       args.estimated_run_time,
-      context?.signal,
+      context,
     );
     return output || "No terminal output captured.";
   }
@@ -106,7 +110,7 @@ export class RunShellCommandTool implements Tool {
   private async waitForStableTerminalOutput(
     startPosition: TerminalBufferPosition | null,
     waitTimeSeconds?: number,
-    signal?: AbortSignal,
+    context?: ToolExecutionContext,
   ): Promise<string> {
     const frontend = this.terminal.frontend;
     if (!frontend) {
@@ -115,15 +119,37 @@ export class RunShellCommandTool implements Tool {
 
     const initialWaitMs = this.normalizeWaitTime(waitTimeSeconds);
     let lastOutput = "";
+    let awaitingTerminalInput = false;
 
-    await this.sleep(initialWaitMs, signal);
+    await this.sleep(initialWaitMs, context?.signal);
     lastOutput = this.getCommandOutput(startPosition);
 
     while (true) {
-      await this.sleep(1000, signal);
+      await this.sleep(1000, context?.signal);
       const output = this.getCommandOutput(startPosition);
+      const needsTerminalInput = this.detectTerminalInputPrompt(output);
+
+      if (needsTerminalInput && !awaitingTerminalInput) {
+        awaitingTerminalInput = true;
+        context?.onStateChange?.({
+          status: "awaiting_terminal_input",
+          output:
+            "Waiting for secure input in the terminal. Focus the terminal tab and complete the prompt there.",
+        });
+      } else if (!needsTerminalInput && awaitingTerminalInput) {
+        awaitingTerminalInput = false;
+        context?.onStateChange?.({
+          status: "executing",
+          output: "Terminal input received. Waiting for the command to finish...",
+        });
+      }
+
       if (output !== lastOutput) {
         lastOutput = output;
+        continue;
+      }
+
+      if (awaitingTerminalInput) {
         continue;
       }
 
@@ -156,6 +182,26 @@ export class RunShellCommandTool implements Tool {
       : this.terminalContext.getLastCommandContext(frontend, 200);
 
     return context?.content?.trim() || "";
+  }
+
+  private detectTerminalInputPrompt(output: string): boolean {
+    const trimmedOutput = output.trim();
+    if (!trimmedOutput) {
+      return false;
+    }
+
+    const lines = trimmedOutput
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0);
+    const tail = lines.slice(-2);
+
+    return [
+      /^\[sudo\]\s+password\b[^:\n]*:\s*$/i,
+      /^\bpassword\b[^:\n]*:\s*$/i,
+      /^\bpassphrase\b[^:\n]*:\s*$/i,
+      /^\benter\s+passphrase\b[^:\n]*:\s*$/i,
+    ].some((pattern) => tail.some((line) => pattern.test(line)));
   }
 
   private sleep(delayMs: number, signal?: AbortSignal): Promise<void> {

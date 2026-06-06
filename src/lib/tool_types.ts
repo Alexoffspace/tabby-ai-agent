@@ -12,8 +12,14 @@ export interface ToolDefinition<TArgs = any> {
   exec: (args: TArgs, context?: ToolExecutionContext) => Promise<string>;
 }
 
+export interface ToolExecutionState {
+  status: "executing" | "awaiting_terminal_input";
+  output?: string | null;
+}
+
 export interface ToolExecutionContext {
   signal?: AbortSignal;
+  onStateChange?: (state: ToolExecutionState) => void;
 }
 
 export interface Tool {

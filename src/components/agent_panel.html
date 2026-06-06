@@ -110,6 +110,7 @@
             class="tool-call-card"
             *ngFor="let toolCall of getToolCalls(message.toolCallIds); trackBy: trackToolCall"
             [class.awaiting-approval]="toolCall.status === 'awaiting_approval'"
+            [class.awaiting-terminal-input]="toolCall.status === 'awaiting_terminal_input'"
             [class.executing]="toolCall.status === 'executing'"
             [class.blocked]="toolCall.status === 'blocked'"
             [class.completed]="toolCall.status === 'completed'"

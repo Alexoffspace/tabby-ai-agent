@@ -24,14 +24,14 @@ export class AIAgentConfigProvider extends ConfigProvider {
       additionalSystemPrompt: "",
     },
     hotkeys: {
-      "toggle-ai-agent-panel": ["Ctrl-Shift-B"],
+      "toggle-ai-agent-panel": ["Ctrl-Alt-A"],
     },
   };
 
   platformDefaults = {
     [Platform.macOS]: {
       hotkeys: {
-        "toggle-ai-agent-panel": ["Cmd-Shift-B"],
+        "toggle-ai-agent-panel": ["Cmd-Shift-A"],
       },
     },
   };
