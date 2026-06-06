@@ -1,4 +1,5 @@
 import { Tool } from "./tool_types";
+import defaultSystemPromptTemplate from "../prompts/default_system_prompt.md";
 
 export interface LLMHistoryItem {
   role: "system" | "user" | "assistant" | "tool" | "reasoning";
@@ -16,17 +17,41 @@ type ToolCallAccumulator = {
   };
 };
 
-export async function checkpointLLMEndpoint(baseUrl: string): Promise<void> {
+export function buildSystemPrompt(additionalPrompt?: string): string {
+  const parts = [defaultSystemPromptTemplate.trim()];
+  const extra = additionalPrompt?.trim();
+  if (extra) {
+    parts.push(extra);
+  }
+  return parts.join("\n\n");
+}
+
+function buildRequestHeaders(apiToken?: string): Record<string, string> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  const trimmedToken = apiToken?.trim();
+  if (trimmedToken) {
+    headers.Authorization = `Bearer ${trimmedToken}`;
+  }
+  return headers;
+}
+
+export async function checkpointLLMEndpoint(
+  baseUrl: string,
+  apiToken?: string,
+  model = "default",
+): Promise<void> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 10000);
 
   try {
     const response = await fetch(`${baseUrl}/v1/chat/completions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: buildRequestHeaders(apiToken),
       signal: controller.signal,
       body: JSON.stringify({
-        model: "default",
+        model,
         messages: [
           {
             role: "user",
@@ -55,6 +80,8 @@ export class LLMChatSession {
   private history: LLMHistoryItem[] = [];
   private warmupPromise: Promise<void> | null = null;
   private baseUrl: string;
+  private apiToken: string;
+  private model: string;
   private extraParameters: Record<string, any> = {};
   toolCalls: { name: string; args: any; output: string }[] = [];
   tools: Tool[];
@@ -64,10 +91,14 @@ export class LLMChatSession {
     baseUrl: string,
     systemPrompt: string,
     tools: Tool[],
+    apiToken?: string,
+    model = "default",
     extraParameters?: Record<string, any>,
     history?: LLMHistoryItem[],
   ) {
     this.baseUrl = baseUrl;
+    this.apiToken = apiToken?.trim() ?? "";
+    this.model = model.trim() || "default";
     this.extraParameters = extraParameters || {};
     this.tools = tools;
     this.toolSchema = buildToolSchema(this.tools || []);
@@ -152,10 +183,10 @@ export class LLMChatSession {
       this.throwIfAborted(options.signal);
       const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildRequestHeaders(this.apiToken),
         signal: options.signal,
         body: JSON.stringify({
-          model: "default",
+          model: this.model,
           messages: this.history.filter((h) => h.role !== "reasoning"),
           stream: true,
           tools: this.toolSchema,
@@ -261,13 +292,15 @@ export class LLMChatSession {
           const toolName = tool.name();
           let toolOutput: string;
           let allow = true;
+          let stopAfterToolResult = false;
           if (!options.silent)
             console.log(`Tool call: ${toolName} with args`, args);
           if (options.onToolCall) {
             allow = await options.onToolCall(toolCallId, toolName, args);
           }
           if (!allow) {
-            toolOutput = `Tool ${toolName} call was not allowed.`;
+            toolOutput = `Tool ${toolName} call was not allowed because the user declined it. Current response stopped.`;
+            stopAfterToolResult = true;
           } else {
             try {
               this.throwIfAborted(options.signal);
@@ -326,6 +359,9 @@ export class LLMChatSession {
             content: toolOutput,
             tool_call_id: toolCallId,
           });
+          if (stopAfterToolResult) {
+            return fullContent;
+          }
         }
         continue;
       } else if (finishReason === "stop") {
@@ -355,9 +391,9 @@ export class LLMChatSession {
 
       const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: buildRequestHeaders(this.apiToken),
         body: JSON.stringify({
-          model: "default",
+          model: this.model,
           messages: warmupMessages,
           stream: false,
           n_predict: 0,

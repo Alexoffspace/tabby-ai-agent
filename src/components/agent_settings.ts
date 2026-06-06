@@ -7,7 +7,10 @@ import { checkpointLLMEndpoint } from "../lib/llm_chat_session";
   styleUrls: ["./agent_settings.scss"],
 })
 export class AIAgentSettingsComponent implements OnInit {
+  additionalSystemPrompt = "";
   @HostBinding("class.content-box") true;
+  apiToken = "";
+  model = "default";
   additionalRequestParametersText = "";
   additionalRequestParametersError: string | null = null;
   endpointCheckpointStatus:
@@ -23,6 +26,9 @@ export class AIAgentSettingsComponent implements OnInit {
 
   ngOnInit(): void {
     this.ensureConfigDefaults();
+    this.apiToken = this.config.store.aiAgent.apiToken;
+    this.model = this.config.store.aiAgent.model;
+    this.additionalSystemPrompt = this.config.store.aiAgent.additionalSystemPrompt;
     this.additionalRequestParametersText =
       this.config.store.aiAgent.additionalRequestParametersText;
   }
@@ -33,12 +39,35 @@ export class AIAgentSettingsComponent implements OnInit {
     await this.config.save();
   }
 
+  async saveApiToken(value: string): Promise<void> {
+    this.apiToken = value;
+    this.config.store.aiAgent.apiToken = value;
+    await this.config.save();
+  }
+
+  async saveModel(value: string): Promise<void> {
+    const model = value.trim() || "default";
+    this.model = model;
+    this.config.store.aiAgent.model = model;
+    await this.config.save();
+  }
+
   checkLLMEndpoint(): void {
-    this.startEndpointCheckpoint(this.config.store.aiAgent.llmEndpoint);
+    this.startEndpointCheckpoint(
+      this.config.store.aiAgent.llmEndpoint,
+      this.config.store.aiAgent.apiToken,
+      this.config.store.aiAgent.model,
+    );
   }
 
   async saveAutoApproveLowRiskCommands(value: boolean): Promise<void> {
     this.config.store.aiAgent.autoApproveLowRiskCommands = value;
+    await this.config.save();
+  }
+
+  async saveAdditionalSystemPrompt(value: string): Promise<void> {
+    this.additionalSystemPrompt = value;
+    this.config.store.aiAgent.additionalSystemPrompt = value;
     await this.config.save();
   }
 
@@ -60,9 +89,12 @@ export class AIAgentSettingsComponent implements OnInit {
   private ensureConfigDefaults(): void {
     this.config.store.aiAgent ??= {};
     this.config.store.aiAgent.llmEndpoint ??= "";
+    this.config.store.aiAgent.apiToken ??= "";
+    this.config.store.aiAgent.model ??= "default";
     this.config.store.aiAgent.autoApproveLowRiskCommands ??= false;
     this.config.store.aiAgent.additionalRequestParametersText ??= "";
     this.config.store.aiAgent.additionalRequestParameters ??= {};
+    this.config.store.aiAgent.additionalSystemPrompt ??= "";
   }
 
   private normalizeEndpoint(value: string): string {
@@ -72,7 +104,11 @@ export class AIAgentSettingsComponent implements OnInit {
     return normalized;
   }
 
-  private startEndpointCheckpoint(endpoint: string): void {
+  private startEndpointCheckpoint(
+    endpoint: string,
+    apiToken: string,
+    model: string,
+  ): void {
     const sequence = ++this.endpointCheckpointSequence;
     if (!endpoint) {
       this.endpointCheckpointStatus = "empty";
@@ -82,12 +118,17 @@ export class AIAgentSettingsComponent implements OnInit {
 
     this.endpointCheckpointStatus = "checking";
     this.endpointCheckpointMessage = "Checking endpoint...";
-    void this.checkEndpoint(endpoint, sequence);
+    void this.checkEndpoint(endpoint, apiToken, model, sequence);
   }
 
-  private async checkEndpoint(endpoint: string, sequence: number): Promise<void> {
+  private async checkEndpoint(
+    endpoint: string,
+    apiToken: string,
+    model: string,
+    sequence: number,
+  ): Promise<void> {
     try {
-      await checkpointLLMEndpoint(endpoint);
+      await checkpointLLMEndpoint(endpoint, apiToken, model);
       if (sequence !== this.endpointCheckpointSequence) {
         return;
       }

@@ -104,6 +104,10 @@ export default {
                 type: 'asset/source',
             },
             {
+                test: /\.md$/,
+                type: 'asset/source',
+            },
+            {
                 test: /\.scss$/,
                 use: ['@tabby-gang/to-string-loader', 'css-loader', 'sass-loader'],
                 include: componentScssPattern,

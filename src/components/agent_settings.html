@@ -80,6 +80,69 @@
 
   <section class="settings-card">
     <div class="setting-copy">
+      <div class="setting-kicker">Authentication</div>
+      <div class="title">API token</div>
+      <div class="description">
+        Required for commercial OpenAI-compatible providers that expect bearer
+        auth. Leave empty for local endpoints that do not require a token.
+      </div>
+    </div>
+
+    <div class="input-wrap">
+      <label class="input-label" for="ai-agent-api-token">Bearer token</label>
+      <input
+        id="ai-agent-api-token"
+        class="form-control"
+        type="password"
+        placeholder="sk-..."
+        autocomplete="off"
+        [ngModel]="apiToken"
+        (ngModelChange)="saveApiToken($event)"
+      />
+      <div class="help-panel">
+        <div class="help-title">How it is sent</div>
+        <div>
+          When set, the plugin adds an
+          <code>Authorization: Bearer &lt;token&gt;</code> header to checkpoint,
+          warmup, and chat completion requests.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="settings-card">
+    <div class="setting-copy">
+      <div class="setting-kicker">Provider</div>
+      <div class="title">Model name</div>
+      <div class="description">
+        Model id sent with every request. Commercial providers usually require a
+        real model name instead of <code>default</code>.
+      </div>
+    </div>
+
+    <div class="input-wrap">
+      <label class="input-label" for="ai-agent-model">Model</label>
+      <input
+        id="ai-agent-model"
+        class="form-control"
+        type="text"
+        placeholder="gpt-4.1-mini"
+        [ngModel]="model"
+        (ngModelChange)="saveModel($event)"
+      />
+      <div class="help-panel">
+        <div class="help-title">Examples</div>
+        <div>
+          Use the exact provider model id, such as
+          <code>gpt-4.1</code>, <code>gpt-4.1-mini</code>, or your gateway's
+          routing slug.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="settings-card">
+    <div class="setting-copy">
       <div class="setting-kicker">Safety</div>
       <div class="title">Command approval</div>
       <div class="description">
@@ -105,6 +168,40 @@
           </span>
         </span>
       </label>
+    </div>
+  </section>
+
+  <section class="settings-card">
+    <div class="setting-copy">
+      <div class="setting-kicker">Prompting</div>
+      <div class="title">Additional system prompt</div>
+      <div class="description">
+        Optional instructions appended after the built-in system prompt for
+        every new AI chat session.
+      </div>
+    </div>
+
+    <div class="input-wrap">
+      <label class="input-label" for="ai-agent-system-prompt"
+        >Additional instructions</label
+      >
+      <textarea
+        id="ai-agent-system-prompt"
+        class="form-control json-textarea"
+        rows="6"
+        spellcheck="false"
+        placeholder="Prefer terse answers. Ask before running package managers."
+        [ngModel]="additionalSystemPrompt"
+        (ngModelChange)="saveAdditionalSystemPrompt($event)"
+      ></textarea>
+      <div class="help-panel">
+        <div class="help-title">How it is used</div>
+        <div>
+          This text is appended after the plugin's built-in system prompt, so
+          your instructions can refine behavior without replacing the base
+          tool-use rules.
+        </div>
+      </div>
     </div>
   </section>
 

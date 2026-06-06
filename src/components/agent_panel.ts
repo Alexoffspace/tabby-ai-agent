@@ -11,7 +11,11 @@ import {
 import { ConfigService } from "tabby-core";
 import { BaseTerminalTabComponent, Frontend } from "tabby-terminal";
 import { GetTerminalLinesTool } from "../lib/get_terminal_lines.tool";
-import { LLMChatSession, LLMHistoryItem } from "../lib/llm_chat_session";
+import {
+  buildSystemPrompt,
+  LLMChatSession,
+  LLMHistoryItem,
+} from "../lib/llm_chat_session";
 import { Tool } from "../lib/tool_types";
 import { RunShellCommandTool } from "../lib/run_shell_command.tool";
 import { CancelCommandTool } from "../lib/cancel_command.tool";
@@ -85,9 +89,12 @@ export class AIPanelComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.config.store.aiAgent ??= {};
     this.config.store.aiAgent.llmEndpoint ??= "";
+    this.config.store.aiAgent.apiToken ??= "";
+    this.config.store.aiAgent.model ??= "default";
     this.config.store.aiAgent.autoApproveLowRiskCommands ??= false;
     this.config.store.aiAgent.additionalRequestParametersText ??= "";
     this.config.store.aiAgent.additionalRequestParameters ??= {};
+    this.config.store.aiAgent.additionalSystemPrompt ??= "";
     this.initializeSession();
   }
 
@@ -366,16 +373,10 @@ export class AIPanelComponent implements OnInit, OnDestroy {
 
     this.chatSession = new LLMChatSession(
       endpoint,
-      [
-        "You are the AI assistant embedded in a terminal side panel.",
-        "Answer conversationally and concisely.",
-        "You can use the get_terminal_lines tool to inspect recent terminal output.",
-        "You can use the run_shell_command tool when executing a shell command is necessary.",
-        "You can use the cancel_command tool to send Ctrl-C when an active foreground command should be interrupted.",
-        "Only call run_shell_command when terminal execution materially helps the user.",
-        "Every run_shell_command call must include command, risk_level, explanation, and estimated_run_time in seconds.",
-      ].join("\n"),
+      buildSystemPrompt(this.getAdditionalSystemPrompt()),
       this.sessionTools,
+      this.getApiToken(),
+      this.getModel(),
       this.getAdditionalRequestParameters(),
     );
   }
@@ -395,6 +396,18 @@ export class AIPanelComponent implements OnInit, OnDestroy {
   private getAdditionalRequestParameters(): Record<string, any> {
     const params = this.config.store.aiAgent?.additionalRequestParameters;
     return this.isPlainObject(params) ? params : {};
+  }
+
+  private getApiToken(): string {
+    return this.config.store.aiAgent?.apiToken?.trim?.() ?? "";
+  }
+
+  private getModel(): string {
+    return this.config.store.aiAgent?.model?.trim?.() || "default";
+  }
+
+  private getAdditionalSystemPrompt(): string {
+    return this.config.store.aiAgent?.additionalSystemPrompt?.trim?.() ?? "";
   }
 
   private appendStreamingToken(
