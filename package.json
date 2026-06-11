@@ -8,7 +8,8 @@
   "main": "dist/index.js",
   "scripts": {
     "build": "webpack --progress --color",
-    "watch": "webpack --progress --color --watch"
+    "watch": "webpack --progress --color --watch",
+    "test": "node --experimental-strip-types tests/llm_endpoint.test.ts"
   },
   "type": "module",
   "publishConfig": {

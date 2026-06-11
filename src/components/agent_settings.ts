@@ -1,6 +1,7 @@
 import { Component, HostBinding, OnInit } from "@angular/core";
 import { ConfigService } from "tabby-core";
 import { checkpointLLMEndpoint } from "../lib/llm_chat_session";
+import { normalizeOpenAIBaseUrl } from "../lib/llm_endpoint";
 
 @Component({
   templateUrl: "./agent_settings.html",
@@ -98,10 +99,7 @@ export class AIAgentSettingsComponent implements OnInit {
   }
 
   private normalizeEndpoint(value: string): string {
-    let normalized = value.trim();
-    normalized = normalized.replace(/\/v1\/chat\/completions\/?$/i, "");
-    normalized = normalized.replace(/\/+$/, "");
-    return normalized;
+    return normalizeOpenAIBaseUrl(value);
   }
 
   private startEndpointCheckpoint(

@@ -1,5 +1,10 @@
 import { Tool } from "./tool_types";
 import defaultSystemPromptTemplate from "../prompts/default_system_prompt.md";
+import {
+  buildChatCompletionsUrl,
+  buildCheckpointRequestBody,
+  normalizeOpenAIBaseUrl,
+} from "./llm_endpoint";
 
 export interface LLMHistoryItem {
   role: "system" | "user" | "assistant" | "tool" | "reasoning";
@@ -46,21 +51,11 @@ export async function checkpointLLMEndpoint(
   const timeout = setTimeout(() => controller.abort(), 10000);
 
   try {
-    const response = await fetch(`${baseUrl}/v1/chat/completions`, {
+    const response = await fetch(buildChatCompletionsUrl(baseUrl), {
       method: "POST",
       headers: buildRequestHeaders(apiToken),
       signal: controller.signal,
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: "user",
-            content: "Validate this endpoint without generating output.",
-          },
-        ],
-        stream: false,
-        max_tokens: 0,
-      }),
+      body: JSON.stringify(buildCheckpointRequestBody(model)),
     });
 
     if (!response.ok) {
@@ -96,7 +91,7 @@ export class LLMChatSession {
     extraParameters?: Record<string, any>,
     history?: LLMHistoryItem[],
   ) {
-    this.baseUrl = baseUrl;
+    this.baseUrl = normalizeOpenAIBaseUrl(baseUrl);
     this.apiToken = apiToken?.trim() ?? "";
     this.model = model.trim() || "default";
     this.extraParameters = extraParameters || {};
@@ -181,7 +176,7 @@ export class LLMChatSession {
 
     while (true) {
       this.throwIfAborted(options.signal);
-      const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+      const response = await fetch(buildChatCompletionsUrl(this.baseUrl), {
         method: "POST",
         headers: buildRequestHeaders(this.apiToken),
         signal: options.signal,
@@ -399,7 +394,7 @@ export class LLMChatSession {
         },
       ];
 
-      const response = await fetch(`${this.baseUrl}/v1/chat/completions`, {
+      const response = await fetch(buildChatCompletionsUrl(this.baseUrl), {
         method: "POST",
         headers: buildRequestHeaders(this.apiToken),
         body: JSON.stringify({
