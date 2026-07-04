@@ -366,6 +366,24 @@ export class AIPanelComponent implements OnInit, OnDestroy {
     this.pendingToolApprovals.delete(toolCallId);
   }
 
+  approveLastPendingCommand(): void {
+    const pending = this.toolCalls.find(
+      (tc) => tc.status === "awaiting_approval",
+    );
+    if (pending) {
+      this.approveToolCall(pending.id);
+    }
+  }
+
+  declineLastPendingCommand(): void {
+    const pending = this.toolCalls.find(
+      (tc) => tc.status === "awaiting_approval",
+    );
+    if (pending) {
+      this.declineToolCall(pending.id);
+    }
+  }
+
   submitUserAnswer(toolCallId: string, answer?: string): void {
     const request = this.pendingUserInputs.get(toolCallId);
     if (!request || request.settled) {
@@ -901,7 +919,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
     }
   }
 
-  private focusPrompt(): void {
+  public focusPrompt(): void {
     setTimeout(() => this.promptInput?.nativeElement?.focus(), 0);
   }
 

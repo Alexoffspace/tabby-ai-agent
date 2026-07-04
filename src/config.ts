@@ -1,6 +1,7 @@
 import { ConfigProvider, Platform } from "tabby-core";
 
 export type AIProvider = "openrouter" | "litellm";
+export type PanelPosition = "left" | "right" | "top" | "bottom";
 
 export interface AIAgentConfig {
   llmEndpoint: string;
@@ -10,6 +11,8 @@ export interface AIAgentConfig {
   additionalRequestParametersText: string;
   additionalRequestParameters: Record<string, any>;
   additionalSystemPrompt: string;
+  panelPosition: PanelPosition;
+  panelSizePercent: number;
 }
 
 export class AIAgentConfigProvider extends ConfigProvider {
@@ -22,9 +25,13 @@ export class AIAgentConfigProvider extends ConfigProvider {
       additionalRequestParametersText: "",
       additionalRequestParameters: {},
       additionalSystemPrompt: "",
+      panelPosition: "right" as PanelPosition,
+      panelSizePercent: 40,
     },
     hotkeys: {
       "toggle-ai-agent-panel": ["Ctrl-Alt-A"],
+      "approve-ai-agent-command": ["Ctrl-Alt-Enter"],
+      "decline-ai-agent-command": ["Ctrl-Alt-Backspace"],
     },
   };
 
@@ -32,6 +39,8 @@ export class AIAgentConfigProvider extends ConfigProvider {
     [Platform.macOS]: {
       hotkeys: {
         "toggle-ai-agent-panel": ["Cmd-Shift-A"],
+        "approve-ai-agent-command": ["Cmd-Shift-Enter"],
+        "decline-ai-agent-command": ["Cmd-Shift-Backspace"],
       },
     },
   };
