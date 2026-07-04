@@ -173,6 +173,86 @@
 
   <section class="settings-card">
     <div class="setting-copy">
+      <div class="setting-kicker">Layout</div>
+      <div class="title">Panel position</div>
+      <div class="description">
+        Choose where the AI agent panel appears inside the terminal tab.
+      </div>
+    </div>
+
+    <div class="input-wrap">
+      <label class="input-label">Position</label>
+      <div class="position-radio-group">
+        <label class="position-radio">
+          <input
+            type="radio"
+            name="panelPosition"
+            value="left"
+            [checked]="panelPosition === 'left'"
+            (change)="savePanelPosition('left')"
+          />
+          <i class="fas fa-arrow-left"></i>
+          <span>Left</span>
+        </label>
+        <label class="position-radio">
+          <input
+            type="radio"
+            name="panelPosition"
+            value="right"
+            [checked]="panelPosition === 'right'"
+            (change)="savePanelPosition('right')"
+          />
+          <i class="fas fa-arrow-right"></i>
+          <span>Right</span>
+        </label>
+        <label class="position-radio">
+          <input
+            type="radio"
+            name="panelPosition"
+            value="top"
+            [checked]="panelPosition === 'top'"
+            (change)="savePanelPosition('top')"
+          />
+          <i class="fas fa-arrow-up"></i>
+          <span>Top</span>
+        </label>
+        <label class="position-radio">
+          <input
+            type="radio"
+            name="panelPosition"
+            value="bottom"
+            [checked]="panelPosition === 'bottom'"
+            (change)="savePanelPosition('bottom')"
+          />
+          <i class="fas fa-arrow-down"></i>
+          <span>Bottom</span>
+        </label>
+      </div>
+    </div>
+
+    <div class="input-wrap">
+      <label class="input-label" for="ai-agent-panel-size">
+        Panel size: <strong>{{ panelSizePercent }}%</strong>
+      </label>
+      <input
+        id="ai-agent-panel-size"
+        class="form-range"
+        type="range"
+        min="10"
+        max="90"
+        step="5"
+        [ngModel]="panelSizePercent"
+        (ngModelChange)="savePanelSizePercent($event)"
+      />
+      <div class="range-labels">
+        <span>10%</span>
+        <span>90%</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="settings-card">
+    <div class="setting-copy">
       <div class="setting-kicker">Prompting</div>
       <div class="title">Additional system prompt</div>
       <div class="description">

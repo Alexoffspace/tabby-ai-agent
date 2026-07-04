@@ -1,5 +1,6 @@
 import { Component, HostBinding, OnInit } from "@angular/core";
 import { ConfigService } from "tabby-core";
+import { PanelPosition } from "../config";
 import { checkpointLLMEndpoint } from "../lib/llm_chat_session";
 import { normalizeOpenAIBaseUrl } from "../lib/llm_endpoint";
 
@@ -14,6 +15,8 @@ export class AIAgentSettingsComponent implements OnInit {
   model = "default";
   additionalRequestParametersText = "";
   additionalRequestParametersError: string | null = null;
+  panelPosition: PanelPosition = "right";
+  panelSizePercent = 40;
   endpointCheckpointStatus:
     | "idle"
     | "checking"
@@ -32,6 +35,8 @@ export class AIAgentSettingsComponent implements OnInit {
     this.additionalSystemPrompt = this.config.store.aiAgent.additionalSystemPrompt;
     this.additionalRequestParametersText =
       this.config.store.aiAgent.additionalRequestParametersText;
+    this.panelPosition = this.config.store.aiAgent.panelPosition ?? "right";
+    this.panelSizePercent = this.config.store.aiAgent.panelSizePercent ?? 40;
   }
 
   async saveLLMEndpoint(value: string): Promise<void> {
@@ -87,6 +92,19 @@ export class AIAgentSettingsComponent implements OnInit {
     await this.config.save();
   }
 
+  async savePanelPosition(value: PanelPosition): Promise<void> {
+    this.panelPosition = value;
+    this.config.store.aiAgent.panelPosition = value;
+    await this.config.save();
+  }
+
+  async savePanelSizePercent(value: number): Promise<void> {
+    const clamped = Math.min(90, Math.max(10, Math.round(value)));
+    this.panelSizePercent = clamped;
+    this.config.store.aiAgent.panelSizePercent = clamped;
+    await this.config.save();
+  }
+
   private ensureConfigDefaults(): void {
     this.config.store.aiAgent ??= {};
     this.config.store.aiAgent.llmEndpoint ??= "";
@@ -96,6 +114,8 @@ export class AIAgentSettingsComponent implements OnInit {
     this.config.store.aiAgent.additionalRequestParametersText ??= "";
     this.config.store.aiAgent.additionalRequestParameters ??= {};
     this.config.store.aiAgent.additionalSystemPrompt ??= "";
+    this.config.store.aiAgent.panelPosition ??= "right";
+    this.config.store.aiAgent.panelSizePercent ??= 40;
   }
 
   private normalizeEndpoint(value: string): string {

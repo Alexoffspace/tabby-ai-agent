@@ -6,7 +6,9 @@ import {
   createComponent,
   EnvironmentInjector,
 } from "@angular/core";
+import { ConfigService } from "tabby-core";
 import { BaseTerminalTabComponent } from "tabby-terminal";
+import { PanelPosition } from "../config";
 import { AIPanelComponent } from "../components/agent_panel";
 
 @Injectable()
@@ -28,6 +30,7 @@ export class AIAgentPanelService {
     private appRef: ApplicationRef,
     private injector: Injector,
     private envInjector: EnvironmentInjector,
+    private config: ConfigService,
   ) {}
 
   toggle(terminal: BaseTerminalTabComponent<any>): void {
@@ -44,9 +47,10 @@ export class AIAgentPanelService {
       const ref = this.panelRefs.get(terminal)!;
       ref.location.nativeElement.style.display = "flex";
       this.ensureLayoutObserver(terminal);
-      this.syncPanelBounds(terminal);
+      this.syncLayout(terminal);
       this.panelVisible.set(terminal, true);
       this.updateTerminalLayout(terminal, true);
+      ref.instance.focusPrompt();
       return;
     }
 
@@ -62,29 +66,29 @@ export class AIAgentPanelService {
 
     const hostElement = terminal.element.nativeElement as HTMLElement;
     const panelElement = panelRef.location.nativeElement as HTMLElement;
-    const widthPercent = 40;
+    const config = this.getPanelConfig();
+
+    const { baseCSS } = this.buildPanelStyles(config);
 
     panelElement.style.cssText = `
             position: absolute;
-            top: 0;
-            right: 0;
-            width: ${widthPercent}%;
-            height: 100%;
             z-index: 100;
             display: flex;
             flex-direction: column;
             pointer-events: auto;
             background: var(--theme-bg);
+            ${baseCSS}
         `;
 
     hostElement.appendChild(panelElement);
     this.appRef.attachView(panelRef.hostView);
     this.panelRefs.set(terminal, panelRef);
     this.ensureLayoutObserver(terminal);
-    this.syncPanelBounds(terminal);
+    this.syncLayout(terminal);
     this.panelVisible.set(terminal, true);
     this.updateTerminalLayout(terminal, true);
     panelRef.changeDetectorRef.detectChanges();
+    panelRef.instance.focusPrompt();
   }
 
   hide(terminal: BaseTerminalTabComponent<any>): void {
@@ -95,6 +99,20 @@ export class AIAgentPanelService {
     this.panelVisible.set(terminal, false);
     this.updateTerminalLayout(terminal, false);
     terminal.frontend?.focus();
+  }
+
+  approvePendingCommand(terminal: BaseTerminalTabComponent<any>): void {
+    const panelRef = this.panelRefs.get(terminal);
+    if (panelRef?.location.nativeElement.style.display !== "none") {
+      panelRef?.instance.approveLastPendingCommand();
+    }
+  }
+
+  declinePendingCommand(terminal: BaseTerminalTabComponent<any>): void {
+    const panelRef = this.panelRefs.get(terminal);
+    if (panelRef?.location.nativeElement.style.display !== "none") {
+      panelRef?.instance.declineLastPendingCommand();
+    }
   }
 
   detach(terminal: BaseTerminalTabComponent<any>): void {
@@ -108,23 +126,104 @@ export class AIAgentPanelService {
     this.panelVisible.delete(terminal);
   }
 
+  private getPanelConfig(): { position: PanelPosition; sizePercent: number } {
+    const aiAgent = this.config.store.aiAgent ?? {};
+    return {
+      position: aiAgent.panelPosition ?? "right",
+      sizePercent: aiAgent.panelSizePercent ?? 40,
+    };
+  }
+
+  private buildPanelStyles(config: {
+    position: PanelPosition;
+    sizePercent: number;
+  }): { baseCSS: string; borderCSS: string } {
+    const pct = config.sizePercent;
+
+    switch (config.position) {
+      case "left":
+        return {
+          baseCSS: `left:0; top:0; width:${pct}%; height:100%; border-right:1px solid var(--theme-border);`,
+          borderCSS: "border-right",
+        };
+      case "right":
+        return {
+          baseCSS: `right:0; top:0; width:${pct}%; height:100%; border-left:1px solid var(--theme-border);`,
+          borderCSS: "border-left",
+        };
+      case "top":
+        return {
+          baseCSS: `left:0; top:0; width:100%; height:${pct}%; border-bottom:1px solid var(--theme-border);`,
+          borderCSS: "border-bottom",
+        };
+      case "bottom":
+        return {
+          baseCSS: `left:0; bottom:0; width:100%; height:${pct}%; border-top:1px solid var(--theme-border);`,
+          borderCSS: "border-top",
+        };
+    }
+  }
+
   private updateTerminalLayout(
     terminal: BaseTerminalTabComponent<any>,
     panelVisible: boolean,
   ): void {
-    if (panelVisible) {
-      this.syncPanelBounds(terminal);
-    }
-
-    const contentEl = terminal.element.nativeElement.querySelector(
+    const hostElement = terminal.element.nativeElement as HTMLElement;
+    const contentEl = hostElement.querySelector(
       ".content",
     ) as HTMLElement | null;
+
+    if (panelVisible) {
+      this.syncLayout(terminal);
+    }
+
     if (contentEl) {
-      if (panelVisible) {
-        const widthPercent = 40;
-        contentEl.style.width = `${100 - widthPercent}%`;
-      } else {
-        contentEl.style.width = "100%";
+      const config = this.getPanelConfig();
+      const toolbarOffset = this.getToolbarOffset(hostElement);
+      const hostHeight = hostElement.clientHeight;
+      const hostWidth = hostElement.clientWidth;
+      const pct = config.sizePercent;
+
+      if (!panelVisible) {
+        contentEl.style.marginLeft = "";
+        contentEl.style.marginRight = "";
+        contentEl.style.marginTop = "";
+        contentEl.style.marginBottom = "";
+        contentEl.style.width = "";
+        contentEl.style.height = "";
+      } else if (config.position === "left") {
+        const panelWidth = hostWidth * (pct / 100);
+        contentEl.style.marginLeft = `${panelWidth}px`;
+        contentEl.style.marginRight = "";
+        contentEl.style.marginTop = "";
+        contentEl.style.marginBottom = "";
+        contentEl.style.width = "";
+        contentEl.style.height = "";
+      } else if (config.position === "right") {
+        const panelWidth = hostWidth * (pct / 100);
+        contentEl.style.marginRight = `${panelWidth}px`;
+        contentEl.style.marginLeft = "";
+        contentEl.style.marginTop = "";
+        contentEl.style.marginBottom = "";
+        contentEl.style.width = "";
+        contentEl.style.height = "";
+      } else if (config.position === "top") {
+        const panelHeight = hostHeight * (pct / 100);
+        const contentTop = toolbarOffset + panelHeight;
+        contentEl.style.marginTop = `${contentTop}px`;
+        contentEl.style.marginLeft = "";
+        contentEl.style.marginRight = "";
+        contentEl.style.marginBottom = "";
+        contentEl.style.width = "";
+        contentEl.style.height = "";
+      } else if (config.position === "bottom") {
+        const panelHeight = hostHeight * (pct / 100);
+        contentEl.style.marginBottom = `${panelHeight}px`;
+        contentEl.style.marginTop = `${toolbarOffset}px`;
+        contentEl.style.marginLeft = "";
+        contentEl.style.marginRight = "";
+        contentEl.style.width = "";
+        contentEl.style.height = "";
       }
     }
 
@@ -150,7 +249,10 @@ export class AIAgentPanelService {
       syncQueued = true;
       requestAnimationFrame(() => {
         syncQueued = false;
-        this.syncPanelBounds(terminal);
+        const isVisible = this.panelVisible.get(terminal) ?? false;
+        if (isVisible) {
+          this.updateTerminalLayout(terminal, true);
+        }
       });
     };
 
@@ -174,7 +276,9 @@ export class AIAgentPanelService {
     });
   }
 
-  private destroyLayoutObserver(terminal: BaseTerminalTabComponent<any>): void {
+  private destroyLayoutObserver(
+    terminal: BaseTerminalTabComponent<any>,
+  ): void {
     const observers = this.layoutObservers.get(terminal);
     if (!observers) {
       return;
@@ -185,7 +289,7 @@ export class AIAgentPanelService {
     this.layoutObservers.delete(terminal);
   }
 
-  private syncPanelBounds(terminal: BaseTerminalTabComponent<any>): void {
+  private syncLayout(terminal: BaseTerminalTabComponent<any>): void {
     const panelRef = this.panelRefs.get(terminal);
     if (!panelRef) {
       return;
@@ -193,11 +297,27 @@ export class AIAgentPanelService {
 
     const panelElement = panelRef.location.nativeElement as HTMLElement;
     const hostElement = terminal.element.nativeElement as HTMLElement;
+    const config = this.getPanelConfig();
     const toolbarOffset = this.getToolbarOffset(hostElement);
 
-    panelElement.style.top = `${toolbarOffset}px`;
-    panelElement.style.height =
-      toolbarOffset > 0 ? `calc(100% - ${toolbarOffset}px)` : "100%";
+    if (config.position === "left" || config.position === "right") {
+      panelElement.style.top = `${toolbarOffset}px`;
+      panelElement.style.height =
+        toolbarOffset > 0 ? `calc(100% - ${toolbarOffset}px)` : "100%";
+      panelElement.style.bottom = "auto";
+    } else if (config.position === "top") {
+      const hostHeight = hostElement.clientHeight;
+      const panelHeight = hostHeight * (config.sizePercent / 100);
+      panelElement.style.top = `${toolbarOffset}px`;
+      panelElement.style.height = `${panelHeight}px`;
+      panelElement.style.bottom = "auto";
+    } else if (config.position === "bottom") {
+      const hostHeight = hostElement.clientHeight;
+      const panelHeight = hostHeight * (config.sizePercent / 100);
+      panelElement.style.top = "auto";
+      panelElement.style.bottom = "0";
+      panelElement.style.height = `${panelHeight}px`;
+    }
   }
 
   private getToolbarOffset(hostElement: HTMLElement): number {
