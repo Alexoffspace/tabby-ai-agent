@@ -18,6 +18,10 @@ export class AIAgentHotkeyProvider extends HotkeyProvider {
         name: this.translate.instant("Toggle AI Agent Panel"),
       },
       {
+        id: "stop-ai-agent-response",
+        name: this.translate.instant("Stop AI Agent Response"),
+      },
+      {
         id: "approve-ai-agent-command",
         name: this.translate.instant("Approve AI Agent Command"),
       },
