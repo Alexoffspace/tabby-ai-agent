@@ -30,6 +30,7 @@ export class AIAgentConfigProvider extends ConfigProvider {
     },
     hotkeys: {
       "toggle-ai-agent-panel": ["Ctrl-Alt-A"],
+      "stop-ai-agent-response": ["Ctrl-Alt-S"],
       "approve-ai-agent-command": ["Ctrl-Alt-Enter"],
       "decline-ai-agent-command": ["Ctrl-Alt-Backspace"],
     },
@@ -39,6 +40,7 @@ export class AIAgentConfigProvider extends ConfigProvider {
     [Platform.macOS]: {
       hotkeys: {
         "toggle-ai-agent-panel": ["Cmd-Shift-A"],
+        "stop-ai-agent-response": ["Ctrl-Alt-S"],
         "approve-ai-agent-command": ["Cmd-Shift-Enter"],
         "decline-ai-agent-command": ["Cmd-Shift-Backspace"],
       },

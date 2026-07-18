@@ -2,7 +2,7 @@
   class="ai-panel-container"
   (click)="$event.stopPropagation()"
   (mousedown)="$event.stopPropagation()"
-  (keydown)="$event.stopPropagation()"
+  (keydown)="handleContainerKeydown($event); $event.stopPropagation()"
   (keyup)="$event.stopPropagation()"
   (keypress)="$event.stopPropagation()"
 >
@@ -149,17 +149,17 @@
                 type="button"
                 (click)="approveToolCall(toolCall.id)"
               >
-                Approve
+                <span class="btn-text">Approve</span>
+                <small class="kbd-hint">{{ getHotkeyLabel('approve-ai-agent-command') }}</small>
               </button>
-              <small class="kbd-hint">Ctrl+Alt+Enter</small>
               <button
                 class="btn btn-sm btn-outline-secondary"
                 type="button"
                 (click)="declineToolCall(toolCall.id)"
               >
-                Decline
+                <span class="btn-text">Decline</span>
+                <small class="kbd-hint">{{ getHotkeyLabel('decline-ai-agent-command') }}</small>
               </button>
-              <small class="kbd-hint">Ctrl+Alt+Backspace</small>
             </div>
             <div
               class="ask-user-card"
@@ -236,6 +236,7 @@
       (click)="stopCurrentResponse()"
     >
       Stop
+      <small class="kbd-hint">{{ getHotkeyLabel('stop-ai-agent-response') }}</small>
     </button>
     <ng-template #sendButton>
       <button
