@@ -147,27 +147,53 @@
       <div class="title">Command approval</div>
       <div class="description">
         The assistant can propose shell commands with a risk level and an
-        explanation. This option only bypasses prompts for commands classified
-        as <code>low</code> risk; medium and high risk commands still require
-        manual approval.
+        explanation. Choose how much control the agent has before a command is
+        sent to the active terminal.
       </div>
     </div>
 
     <div class="input-wrap">
-      <label class="toggle-card">
-        <input
-          type="checkbox"
-          [ngModel]="config.store.aiAgent.autoApproveLowRiskCommands"
-          (ngModelChange)="saveAutoApproveLowRiskCommands($event)"
-        />
-        <span class="toggle-copy">
-          <span class="toggle-title">Auto approve low risk commands</span>
-          <span class="toggle-description">
-            Faster for harmless inspection commands, while still requiring
-            review before anything riskier runs.
+      <div class="approval-mode-group" role="radiogroup" aria-label="Command approval mode">
+        <label class="approval-mode-option" [class.selected]="approvalMode === 'manual'">
+          <input
+            type="radio"
+            name="approvalMode"
+            value="manual"
+            [checked]="approvalMode === 'manual'"
+            (change)="saveApprovalMode('manual')"
+          />
+          <span>
+            <span class="approval-mode-title">Manual</span>
+            <span class="approval-mode-description">Review every shell command before it runs.</span>
           </span>
-        </span>
-      </label>
+        </label>
+        <label class="approval-mode-option" [class.selected]="approvalMode === 'lowRisk'">
+          <input
+            type="radio"
+            name="approvalMode"
+            value="lowRisk"
+            [checked]="approvalMode === 'lowRisk'"
+            (change)="saveApprovalMode('lowRisk')"
+          />
+          <span>
+            <span class="approval-mode-title">Low risk only</span>
+            <span class="approval-mode-description">Automatically run inspection and other low-risk commands.</span>
+          </span>
+        </label>
+        <label class="approval-mode-option danger" [class.selected]="approvalMode === 'all'">
+          <input
+            type="radio"
+            name="approvalMode"
+            value="all"
+            [checked]="approvalMode === 'all'"
+            (change)="saveApprovalMode('all')"
+          />
+          <span>
+            <span class="approval-mode-title">All commands</span>
+            <span class="approval-mode-description">Run every proposed command without asking, including destructive commands.</span>
+          </span>
+        </label>
+      </div>
     </div>
   </section>
 

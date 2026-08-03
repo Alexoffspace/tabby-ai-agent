@@ -237,6 +237,64 @@ code {
   line-height: 1.45;
 }
 
+.approval-mode-group {
+  display: grid;
+  gap: 0;
+  overflow: hidden;
+  border: 1px solid var(--theme-border);
+  border-radius: 8px;
+  background: var(--theme-bg);
+}
+
+.approval-mode-option {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 0.7rem;
+  align-items: start;
+  margin: 0;
+  padding: 0.8rem;
+  border-bottom: 1px solid var(--theme-border);
+  cursor: pointer;
+
+  &:last-child {
+    border-bottom: 0;
+  }
+
+  &:hover,
+  &.selected {
+    background: rgba(var(--theme-primary-rgb), 0.08);
+  }
+
+  &.selected {
+    box-shadow: inset 3px 0 0 var(--theme-primary);
+  }
+
+  &.danger.selected {
+    background: rgba(220, 53, 69, 0.08);
+    box-shadow: inset 3px 0 0 var(--bs-danger);
+  }
+
+  input {
+    margin: 0.2rem 0 0;
+    accent-color: var(--theme-primary);
+  }
+}
+
+.approval-mode-title,
+.approval-mode-description {
+  display: block;
+}
+
+.approval-mode-title {
+  font-weight: 700;
+}
+
+.approval-mode-description {
+  margin-top: 0.2rem;
+  color: var(--theme-fg-muted);
+  line-height: 1.45;
+}
+
 .position-radio-group {
   display: flex;
   gap: 4px 16px;

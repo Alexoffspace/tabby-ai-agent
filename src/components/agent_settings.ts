@@ -1,6 +1,6 @@
 import { Component, HostBinding, OnInit } from "@angular/core";
 import { ConfigService } from "tabby-core";
-import { PanelPosition } from "../config";
+import { ApprovalMode, PanelPosition } from "../config";
 import { checkpointLLMEndpoint } from "../lib/llm_chat_session";
 import { normalizeOpenAIBaseUrl } from "../lib/llm_endpoint";
 
@@ -17,6 +17,7 @@ export class AIAgentSettingsComponent implements OnInit {
   additionalRequestParametersError: string | null = null;
   panelPosition: PanelPosition = "right";
   panelSizePercent = 40;
+  approvalMode: ApprovalMode = "manual";
   endpointCheckpointStatus:
     | "idle"
     | "checking"
@@ -37,6 +38,7 @@ export class AIAgentSettingsComponent implements OnInit {
       this.config.store.aiAgent.additionalRequestParametersText;
     this.panelPosition = this.config.store.aiAgent.panelPosition ?? "right";
     this.panelSizePercent = this.config.store.aiAgent.panelSizePercent ?? 40;
+    this.approvalMode = this.config.store.aiAgent.approvalMode ?? "manual";
   }
 
   async saveLLMEndpoint(value: string): Promise<void> {
@@ -66,8 +68,10 @@ export class AIAgentSettingsComponent implements OnInit {
     );
   }
 
-  async saveAutoApproveLowRiskCommands(value: boolean): Promise<void> {
-    this.config.store.aiAgent.autoApproveLowRiskCommands = value;
+  async saveApprovalMode(value: ApprovalMode): Promise<void> {
+    this.approvalMode = value;
+    this.config.store.aiAgent.approvalMode = value;
+    this.config.store.aiAgent.autoApproveLowRiskCommands = value === "lowRisk";
     await this.config.save();
   }
 
@@ -115,6 +119,15 @@ export class AIAgentSettingsComponent implements OnInit {
     this.config.store.aiAgent.llmEndpoint ??= "";
     this.config.store.aiAgent.apiToken ??= "";
     this.config.store.aiAgent.model ??= "default";
+    if (
+      this.config.store.aiAgent.autoApproveLowRiskCommands === true &&
+      (!this.config.store.aiAgent.approvalMode ||
+        this.config.store.aiAgent.approvalMode === "manual")
+    ) {
+      this.config.store.aiAgent.approvalMode = "lowRisk";
+    } else {
+      this.config.store.aiAgent.approvalMode ??= "manual";
+    }
     this.config.store.aiAgent.autoApproveLowRiskCommands ??= false;
     this.config.store.aiAgent.additionalRequestParametersText ??= "";
     this.config.store.aiAgent.additionalRequestParameters ??= {};
