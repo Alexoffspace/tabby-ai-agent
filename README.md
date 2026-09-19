@@ -21,7 +21,9 @@ You are responsible for how you use this plugin. The plugin and its authors are 
 - Answers questions about the current terminal session.
 - Can act autonomously and **execute shell commands** in the active terminal.
 - Shows each proposed command with its risk level, explanation, and estimated runtime.
-- Supports manual approval, with optional auto-approval for low-risk commands.
+- Saves recent conversations locally so you can select one and continue with its full model context.
+- Supports manual approval, low-risk auto-approval, or full auto-approval for all commands.
+- Keeps streamed responses pinned to the newest message while you remain near the bottom.
 - Connects to OpenAI-compatible endpoints, including local and **self-hosted** services.
 - Supports extra request parameters for providers such as LiteLLM, llama.cpp, and vLLM.
 
@@ -30,6 +32,10 @@ You are responsible for how you use this plugin. The plugin and its authors are 
 You can configure the plugin in Tabby's settings.
 
 Inside terminal, open the AI Agent panel using the **AI Agent** button in the toolbar.
+
+Use the history button in the panel header to resume or delete a saved conversation. The plugin keeps up to 30 conversations in Tabby's local browser storage.
+
+Command approval can be set to **Manual**, **Low risk only**, or **All commands** in the AI Agent settings. The all-commands mode can run destructive commands without confirmation and should only be enabled in an isolated environment.
 
 You can also toggle the panel with the keyboard shortcut:
 

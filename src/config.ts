@@ -2,12 +2,14 @@ import { ConfigProvider, Platform } from "tabby-core";
 
 export type AIProvider = "openrouter" | "litellm";
 export type PanelPosition = "left" | "right" | "top" | "bottom";
+export type ApprovalMode = "manual" | "lowRisk" | "all";
 
 export interface AIAgentConfig {
   llmEndpoint: string;
   apiToken: string;
   model: string;
-  autoApproveLowRiskCommands: boolean;
+  approvalMode: ApprovalMode;
+  autoApproveLowRiskCommands?: boolean;
   additionalRequestParametersText: string;
   additionalRequestParameters: Record<string, any>;
   additionalSystemPrompt: string;
@@ -22,6 +24,7 @@ export class AIAgentConfigProvider extends ConfigProvider {
       llmEndpoint: "",
       apiToken: "",
       model: "default",
+      approvalMode: "manual" as ApprovalMode,
       autoApproveLowRiskCommands: false,
       additionalRequestParametersText: "",
       additionalRequestParameters: {},

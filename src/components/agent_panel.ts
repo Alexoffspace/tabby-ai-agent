@@ -21,6 +21,13 @@ import { RunShellCommandTool } from "../lib/run_shell_command.tool";
 import { CancelCommandTool } from "../lib/cancel_command.tool";
 import { TerminalContextService } from "../services/terminal_context.service";
 import { AskUserTool } from "../lib/ask_user.tool";
+import { ApprovalMode } from "../config";
+import {
+  ConversationHistoryStore,
+  StoredConversation,
+  createConversationTitle,
+  sanitizeHistoryForResume,
+} from "../lib/conversation_history";
 
 type ChatRole = "user" | "assistant" | "reasoning" | "tool";
 type ToolCallStatus =
@@ -91,8 +98,15 @@ export class AIPanelComponent implements OnInit, OnDestroy {
   toolCalls: ToolCallViewModel[] = [];
   sending = false;
   lastError: string | null = null;
+  historyOpen = false;
+  conversations: StoredConversation[] = [];
+  activeConversationId = this.generateId("conversation");
+  activeConversationTitle = "New conversation";
 
   private chatSession: LLMChatSession | null = null;
+  private activeLLMHistory: LLMHistoryItem[] = [];
+  private conversationCreatedAt = new Date().toISOString();
+  private readonly historyStore = new ConversationHistoryStore();
   private currentAbortController: AbortController | null = null;
   private streamingAssistantMessageId: string | null = null;
   private streamingReasoningMessageId: string | null = null;
@@ -116,11 +130,21 @@ export class AIPanelComponent implements OnInit, OnDestroy {
     this.config.store.aiAgent.llmEndpoint ??= "";
     this.config.store.aiAgent.apiToken ??= "";
     this.config.store.aiAgent.model ??= "default";
+    if (
+      this.config.store.aiAgent.autoApproveLowRiskCommands === true &&
+      (!this.config.store.aiAgent.approvalMode ||
+        this.config.store.aiAgent.approvalMode === "manual")
+    ) {
+      this.config.store.aiAgent.approvalMode = "lowRisk";
+    } else {
+      this.config.store.aiAgent.approvalMode ??= "manual";
+    }
     this.config.store.aiAgent.autoApproveLowRiskCommands ??= false;
     this.config.store.aiAgent.additionalRequestParametersText ??= "";
     this.config.store.aiAgent.additionalRequestParameters ??= {};
     this.config.store.aiAgent.additionalSystemPrompt ??= "";
     this.config.store.aiAgent.hideTerminalOutput ??= false;
+    this.refreshConversations();
     this.initializeSession();
   }
 
@@ -128,6 +152,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
     this.currentAbortController?.abort();
     this.cancelPendingApprovals();
     this.cancelPendingUserInputs();
+    this.persistCurrentConversation();
     this.chatSession = null;
   }
 
@@ -142,6 +167,27 @@ export class AIPanelComponent implements OnInit, OnDestroy {
       !this.sending &&
       this.draftPrompt.trim().length > 0
     );
+  }
+
+  get approvalMode(): ApprovalMode {
+    const configured = this.config.store.aiAgent?.approvalMode;
+    if (configured === "all" || configured === "lowRisk") {
+      return configured;
+    }
+    return this.config.store.aiAgent?.autoApproveLowRiskCommands
+      ? "lowRisk"
+      : "manual";
+  }
+
+  get approvalModeLabel(): string {
+    switch (this.approvalMode) {
+      case "all":
+        return "Auto: all commands";
+      case "lowRisk":
+        return "Auto: low risk";
+      case "manual":
+        return "Manual approval";
+    }
   }
 
   async sendMessage(): Promise<void> {
@@ -177,6 +223,10 @@ export class AIPanelComponent implements OnInit, OnDestroy {
     this.draftPrompt = "";
     this.resetTextareaHeight();
     this.clearStreamingDrafts();
+    if (this.messages.length === 0) {
+      this.activeConversationTitle = createConversationTitle(prompt);
+      this.conversationCreatedAt = new Date().toISOString();
+    }
     this.appendMessage({
       id: this.generateId("user"),
       role: "user",
@@ -196,12 +246,13 @@ export class AIPanelComponent implements OnInit, OnDestroy {
         },
         onPushHistory: async (message) => {
           this.commitHistoryMessage(message);
+          this.persistCurrentConversation();
         },
         onToolCall: async (toolCallId, toolName, args) => {
           const needsApproval = toolName === "run_shell_command";
           const needsUserInput = toolName === "ask_user";
           const autoApproved =
-            needsApproval && this.shouldAutoApproveLowRiskCommand(args);
+            needsApproval && this.shouldAutoApproveCommand(args);
           this.upsertToolCall(
             this.toToolCallViewModel(toolCallId, toolName, args, {
               status: needsUserInput
@@ -215,7 +266,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
                 ? "Waiting for user input in the agent panel."
                 : needsApproval
                 ? autoApproved
-                  ? "Auto-approved low-risk command. Sending to terminal..."
+                  ? this.getAutoApprovalOutput()
                   : null
                 : "Executing tool...",
               errorMessage: null,
@@ -289,6 +340,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
     } finally {
       this.currentAbortController = null;
       this.sending = false;
+      this.persistCurrentConversation();
       this.focusPrompt();
     }
   }
@@ -364,17 +416,112 @@ export class AIPanelComponent implements OnInit, OnDestroy {
     textarea.style.height = `${Math.min(textarea.scrollHeight, 120)}px`;
   }
 
-  clearChat(): void {
+  toggleHistory(): void {
+    if (!this.historyOpen) {
+      this.refreshConversations();
+    }
+    this.historyOpen = !this.historyOpen;
+  }
+
+  startNewConversation(): void {
     if (this.sending) {
       this.currentAbortController?.abort();
+      this.finalizeStreamingDrafts();
+      this.markActiveToolCallsStopped();
     }
+
+    this.persistCurrentConversation();
+    this.resetConversationState();
+    this.historyOpen = false;
+    this.userIsNearBottom = true;
+    this.initializeSession();
+    this.scrollMessagesToBottom();
+    this.focusPrompt();
+  }
+
+  clearChat(): void {
+    this.startNewConversation();
+  }
+
+  resumeConversation(conversationId: string): void {
+    if (this.sending) {
+      return;
+    }
+
+    const conversation = this.historyStore.get(conversationId);
+    if (!conversation) {
+      this.lastError = "That saved conversation is no longer available.";
+      this.refreshConversations();
+      return;
+    }
+
+    this.persistCurrentConversation();
+    this.cancelPendingApprovals();
+    this.cancelPendingUserInputs();
+    this.clearStreamingDrafts();
+
+    this.activeConversationId = conversation.id;
+    this.activeConversationTitle = conversation.title;
+    this.conversationCreatedAt = conversation.createdAt;
+    this.messages = conversation.messages.map((message) => ({
+      ...message,
+      streaming: false,
+    }));
+    this.toolCalls = conversation.toolCalls.map((toolCall) =>
+      this.restoreToolCall(toolCall),
+    );
+    this.lastError = null;
+    this.draftPrompt = "";
+    this.historyOpen = false;
+    this.userIsNearBottom = true;
+    this.initializeSession(sanitizeHistoryForResume(conversation.llmHistory));
+    this.scrollMessagesToBottom();
+    this.focusPrompt();
+  }
+
+  deleteConversation(conversationId: string, event: MouseEvent): void {
+    event.stopPropagation();
+    this.historyStore.delete(conversationId);
+    if (conversationId === this.activeConversationId) {
+      this.resetConversationState();
+      this.initializeSession();
+    }
+    this.refreshConversations();
+  }
+
+  trackConversation(
+    _index: number,
+    conversation: StoredConversation,
+  ): string {
+    return conversation.id;
+  }
+
+  formatConversationTime(value: string): string {
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return "";
+    }
+
+    return date.toLocaleString([], {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }
+
+  private resetConversationState(): void {
     this.messages = [];
     this.toolCalls = [];
     this.lastError = null;
-    this.clearStreamingDrafts();
+    this.draftPrompt = "";
+    this.streamingAssistantMessageId = null;
+    this.streamingReasoningMessageId = null;
     this.cancelPendingApprovals();
     this.cancelPendingUserInputs();
-    this.initializeSession();
+    this.activeConversationId = this.generateId("conversation");
+    this.activeConversationTitle = "New conversation";
+    this.conversationCreatedAt = new Date().toISOString();
   }
 
   approveToolCall(toolCallId: string): void {
@@ -479,6 +626,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
         ? { ...message, collapsed: !message.collapsed }
         : message,
     );
+    this.persistCurrentConversation();
   }
 
   toggleToolCallOutputCollapsed(toolCallId: string): void {
@@ -487,6 +635,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
         ? { ...tc, outputCollapsed: !tc.outputCollapsed }
         : tc,
     );
+    this.persistCurrentConversation();
   }
 
   getHotkeyLabel(hotkeyId: string): string {
@@ -512,7 +661,8 @@ export class AIPanelComponent implements OnInit, OnDestroy {
       .filter((toolCall): toolCall is ToolCallViewModel => Boolean(toolCall));
   }
 
-  private initializeSession(): void {
+  private initializeSession(history: LLMHistoryItem[] = []): void {
+    this.activeLLMHistory = history;
     const endpoint = this.getEndpoint();
     if (!endpoint || !this.terminal || !this.frontend) {
       this.chatSession = null;
@@ -536,6 +686,7 @@ export class AIPanelComponent implements OnInit, OnDestroy {
       this.getApiToken(),
       this.getModel(),
       this.getAdditionalRequestParameters(),
+      history,
     );
   }
 
@@ -543,12 +694,18 @@ export class AIPanelComponent implements OnInit, OnDestroy {
     return this.config.store.aiAgent?.llmEndpoint?.trim?.() ?? "";
   }
 
-  private shouldAutoApproveLowRiskCommand(args: any): boolean {
-    if (!this.config.store.aiAgent?.autoApproveLowRiskCommands) {
-      return false;
-    }
+  private shouldAutoApproveCommand(args: any): boolean {
+    return (
+      this.approvalMode === "all" ||
+      (this.approvalMode === "lowRisk" &&
+        this.getNormalizedRiskLevel(args) === "low")
+    );
+  }
 
-    return this.getNormalizedRiskLevel(args) === "low";
+  private getAutoApprovalOutput(): string {
+    return this.approvalMode === "all"
+      ? "Auto-approved command. Sending to terminal..."
+      : "Auto-approved low-risk command. Sending to terminal...";
   }
 
   private getAdditionalRequestParameters(): Record<string, any> {
@@ -566,6 +723,75 @@ export class AIPanelComponent implements OnInit, OnDestroy {
 
   private getAdditionalSystemPrompt(): string {
     return this.config.store.aiAgent?.additionalSystemPrompt?.trim?.() ?? "";
+  }
+
+  private refreshConversations(): void {
+    this.conversations = this.historyStore.list();
+  }
+
+  private persistCurrentConversation(): void {
+    if (this.messages.length === 0) {
+      return;
+    }
+
+    const sessionHistory = this.chatSession?.getHistory();
+    if (sessionHistory) {
+      this.activeLLMHistory = sessionHistory;
+    }
+
+    this.historyStore.save({
+      id: this.activeConversationId,
+      title: this.activeConversationTitle,
+      createdAt: this.conversationCreatedAt,
+      updatedAt: new Date().toISOString(),
+      messages: this.messages.map((message) => ({
+        ...message,
+        streaming: false,
+      })),
+      toolCalls: this.toolCalls,
+      llmHistory: this.activeLLMHistory,
+    });
+    this.refreshConversations();
+  }
+
+  private restoreToolCall(
+    toolCall: StoredConversation["toolCalls"][number],
+  ): ToolCallViewModel {
+    const interrupted =
+      toolCall.status === "awaiting_approval" ||
+      toolCall.status === "awaiting_user_input" ||
+      toolCall.status === "awaiting_terminal_input" ||
+      toolCall.status === "executing";
+    const status = this.isToolCallStatus(toolCall.status)
+      ? interrupted
+        ? "blocked"
+        : toolCall.status
+      : "error";
+
+    return {
+      ...toolCall,
+      status,
+      output: interrupted
+        ? toolCall.output
+          ? `${toolCall.output}\nInterrupted before this conversation was resumed.`
+          : "Interrupted before this conversation was resumed."
+        : toolCall.output,
+      errorMessage: this.isToolCallStatus(toolCall.status)
+        ? toolCall.errorMessage
+        : "The saved tool status was invalid.",
+    };
+  }
+
+  private isToolCallStatus(value: string): value is ToolCallStatus {
+    return [
+      "awaiting_approval",
+      "awaiting_user_input",
+      "awaiting_terminal_input",
+      "executing",
+      "blocked",
+      "completed",
+      "error",
+    ].includes(value);
   }
 
   private appendStreamingToken(

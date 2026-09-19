@@ -10,14 +10,100 @@
       <span>AI Agent</span>
     </div>
     <div class="header-actions ms-auto">
-      <button class="btn btn-link btn-sm" type="button" (click)="clearChat()">
-        Clear <span class="kbd-hint">{{ getHotkeyLabel('clear-ai-agent-chat') }}</span>
+      <button
+        class="header-icon-btn"
+        [class.active]="historyOpen"
+        type="button"
+        title="Conversation history"
+        aria-label="Conversation history"
+        [attr.aria-expanded]="historyOpen"
+        (click)="toggleHistory()"
+      >
+        <i class="fas fa-history"></i>
+        <span class="history-count" *ngIf="conversations.length">
+          {{ conversations.length }}
+        </span>
       </button>
-      <button class="btn btn-link btn-sm" type="button" (click)="closed.emit()">
-        Close
+      <button
+        class="header-icon-btn"
+        type="button"
+        [title]="'New conversation (' + getHotkeyLabel('clear-ai-agent-chat') + ')'"
+        aria-label="New conversation"
+        [disabled]="sending"
+        (click)="startNewConversation()"
+      >
+        <i class="fas fa-plus"></i>
+      </button>
+      <button
+        class="header-icon-btn"
+        type="button"
+        title="Close AI Agent"
+        aria-label="Close AI Agent"
+        (click)="closed.emit()"
+      >
+        <i class="fas fa-times"></i>
       </button>
     </div>
   </div>
+
+  <section class="history-drawer" *ngIf="historyOpen">
+    <div class="history-heading">
+      <div>
+        <div class="history-title">Conversation history</div>
+        <div class="history-subtitle">
+          {{ conversations.length }} saved conversation{{ conversations.length === 1 ? "" : "s" }}
+        </div>
+      </div>
+      <button
+        class="header-icon-btn"
+        type="button"
+        title="Close history"
+        aria-label="Close history"
+        (click)="toggleHistory()"
+      >
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="history-list" *ngIf="conversations.length; else emptyHistory">
+      <div
+        class="history-row"
+        *ngFor="let conversation of conversations; trackBy: trackConversation"
+        [class.active]="conversation.id === activeConversationId"
+      >
+        <button
+          class="history-select"
+          type="button"
+          [disabled]="sending"
+          (click)="resumeConversation(conversation.id)"
+        >
+          <span class="history-item-title">{{ conversation.title }}</span>
+          <span class="history-item-meta">
+            {{ formatConversationTime(conversation.updatedAt) }}
+            <span aria-hidden="true">&middot;</span>
+            {{ conversation.messages.length }} messages
+          </span>
+        </button>
+        <button
+          class="history-delete"
+          type="button"
+          title="Delete conversation"
+          aria-label="Delete conversation"
+          [disabled]="sending"
+          (click)="deleteConversation(conversation.id, $event)"
+        >
+          <i class="fas fa-trash-alt"></i>
+        </button>
+      </div>
+    </div>
+
+    <ng-template #emptyHistory>
+      <div class="history-empty">
+        <i class="fas fa-comment-slash"></i>
+        <span>No saved conversations yet</span>
+      </div>
+    </ng-template>
+  </section>
 
   <div class="context-bar">
     <span
@@ -31,12 +117,29 @@
       {{ endpointConfigured ? config.store.aiAgent.llmEndpoint : "Configure
       aiAgent.llmEndpoint in plugin settings." }}
     </span>
+    <span
+      class="approval-pill"
+      [class.low-risk]="approvalMode === 'lowRisk'"
+      [class.all]="approvalMode === 'all'"
+      [attr.title]="approvalMode === 'all' ? 'Every proposed shell command runs without confirmation' : approvalModeLabel"
+    >
+      {{ approvalModeLabel }}
+    </span>
   </div>
 
   <div #messagesContainer class="messages" (scroll)="onMessagesScroll()">
     <div class="empty-state" *ngIf="messages.length === 0">
       <i class="fas fa-comments empty-state-icon"></i>
       <div class="empty-state-title">Try asking the agent</div>
+      <button
+        class="saved-history-link"
+        type="button"
+        *ngIf="conversations.length"
+        (click)="toggleHistory()"
+      >
+        <i class="fas fa-history"></i>
+        Resume a saved conversation
+      </button>
       <ul class="empty-state-examples">
         <li>Explain last command</li>
         <li>Check my nginx logs</li>
