@@ -246,13 +246,16 @@
         Stop
         <small class="kbd-hint">{{ getHotkeyLabel('stop-ai-agent-response') }}</small>
       </button>
-      <span
+      <button
         *ngIf="hasExecutingShellCommand"
-        class="force-read-hint kbd-hint"
+        class="btn btn-outline-secondary force-read-btn"
+        type="button"
         title="Read the current terminal output immediately"
+        (click)="forceReadNow()"
       >
-        Read output now: {{ getHotkeyLabel('force-read-terminal') }}
-      </span>
+        Read output now
+        <small class="kbd-hint">{{ getHotkeyLabel('force-read-terminal') }}</small>
+      </button>
     <ng-template #sendButton>
       <button
         class="btn btn-primary send-btn"
